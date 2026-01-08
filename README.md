@@ -2,6 +2,12 @@
 
 Compose, deliver, and test emails in Rust. Plug and play.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
+  <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
+</picture>
+
 Missive comes with adapters for popular transactional email providers including Amazon SES, Mailgun, Resend, SendGrid, Postmark, SMTP, and more. Zero configuration required for most setups.
 
 ## Requirements
