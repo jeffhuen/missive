@@ -1,0 +1,89 @@
+[package]
+name = "missive"
+version = "0.1.0"
+edition = "2021"
+description = "Compose, deliver, and test emails in Rust - pluggable providers with zero configuration"
+license = "MIT"
+repository = "https://github.com/jeffhuen/missive"
+keywords = ["email", "smtp", "mailer", "sendgrid", "resend"]
+categories = ["email", "web-programming"]
+
+[features]
+default = []
+
+# Internal features (not for direct use)
+_http = ["dep:reqwest"]  # Shared HTTP client for API-based providers
+_aws_sig = ["dep:ring", "dep:sha2", "dep:hex", "dep:urlencoding"]  # AWS Signature v4
+
+# Providers
+smtp = ["dep:lettre"]
+resend = ["_http"]
+unsent = ["_http"]
+postmark = ["_http"]
+sendgrid = ["_http", "dep:flate2"]
+brevo = ["_http"]
+mailgun = ["_http"]
+amazon_ses = ["_http", "_aws_sig"]
+mailtrap = ["_http"]
+mailjet = ["_http"]
+
+# Development & Testing
+local = ["dep:regex"]  # LocalMailer + test assertions (regex for matching)
+preview = ["local", "dep:axum", "dep:askama", "dep:tower-http"]
+
+# Observability
+metrics = ["dep:metrics"]  # Prometheus-style counters/histograms
+
+# Templating
+templates = ["dep:askama"]
+
+# Bundles
+full = ["smtp", "resend", "unsent", "postmark", "sendgrid", "brevo", "mailgun", "amazon_ses", "mailtrap", "mailjet", "local", "templates"]
+dev = ["local", "preview"]
+
+[dependencies]
+# Core
+async-trait = "0.1"
+parking_lot = "0.12"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1"
+mime_guess = "2"
+base64 = "0.22"
+email_address = "0.2"
+idna = "1.0"
+
+# Optional: SMTP
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"], optional = true }
+
+# Optional: HTTP-based providers
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"], optional = true }
+
+# Optional: Preview UI
+axum = { version = "0.8", optional = true }
+askama = { version = "0.13", optional = true }
+tower-http = { version = "0.6", features = ["fs"], optional = true }
+regex = { version = "1", optional = true }
+
+# Optional: Templating
+# askama already listed above
+
+# Optional: Metrics
+metrics = { version = "0.24", optional = true }
+
+# Optional: AWS Signature v4 (for Amazon SES)
+ring = { version = "0.17", optional = true }
+sha2 = { version = "0.10", optional = true }
+hex = { version = "0.4", optional = true }
+urlencoding = { version = "2", optional = true }
+
+# Optional: Compression (for SendGrid)
+flate2 = { version = "1.0", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+wiremock = "0.6"
+serde_urlencoded = "0.7"
