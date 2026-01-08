@@ -1,4 +1,44 @@
 //! Mailer trait and delivery result types.
+//!
+//! # Architecture: Why `async_trait`?
+//!
+//! This module uses `#[async_trait]` instead of native async traits (Rust 1.75+)
+//! because the library requires dynamic dispatch via `Arc<dyn Mailer>`.
+//!
+//! ## The tradeoff
+//!
+//! Native async traits are not object-safe - you can't use `dyn Trait` with them.
+//! The `async_trait` macro boxes futures, enabling dynamic dispatch at the cost
+//! of one heap allocation per method call.
+//!
+//! ## Why this cost is acceptable
+//!
+//! Email sending is I/O-bound. Network latency (50-500ms) completely dominates
+//! the ~10ns heap allocation. The boxing overhead is unmeasurable in practice.
+//!
+//! ## What dynamic dispatch enables
+//!
+//! - **Runtime provider selection**: Choose providers from environment variables
+//!   without recompilation. Deploy the same binary to staging (LocalMailer) and
+//!   production (ResendMailer).
+//!
+//! - **Global mailer pattern**: The `deliver(&email)` API stores an `Arc<dyn Mailer>`
+//!   internally, auto-configured from environment variables.
+//!
+//! - **Custom providers**: Users can implement `Mailer` for their own types and
+//!   use them with the global `configure()` function.
+//!
+//! ## Zero-cost alternative
+//!
+//! Users who want to avoid boxing can call methods directly on concrete types:
+//!
+//! ```ignore
+//! let mailer = ResendMailer::new(api_key);
+//! mailer.deliver(&email).await?;  // No dynamic dispatch
+//! ```
+//!
+//! The boxing only occurs when using `Arc<dyn Mailer>` (global mailer, runtime
+//! provider selection).
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

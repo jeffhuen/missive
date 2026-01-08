@@ -96,6 +96,7 @@ mod address;
 mod attachment;
 mod email;
 mod error;
+pub mod interceptor;
 mod mailer;
 
 pub mod providers;
@@ -126,6 +127,7 @@ pub use address::{Address, ToAddress};
 pub use attachment::{Attachment, AttachmentType};
 pub use email::Email;
 pub use error::MailError;
+pub use interceptor::{Interceptor, InterceptorExt, WithInterceptor};
 pub use mailer::{DeliveryResult, Mailer, MailerExt};
 
 #[cfg(feature = "local")]

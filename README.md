@@ -5,10 +5,10 @@ Compose, deliver, and test emails in Rust. Plug and play.
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
-  <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
+  <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.png">
 </picture>
 
-Missive comes with adapters for popular transactional email providers including Amazon SES, Mailgun, Resend, SendGrid, Postmark, SMTP, and more. Zero configuration required for most setups.
+Missive comes with adapters for popular transactional email providers including Amazon SES, Mailgun, Resend, SendGrid, Postmark, SMTP, and more. For local development, it includes an in-memory mailbox with a web-based preview UI, plus a logger provider for debugging. Zero configuration required for most setups.
 
 ## Requirements
 
@@ -46,7 +46,7 @@ Add missive to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-missive = { version = "0.2", features = ["resend"] }
+missive = { version = "0.3", features = ["resend"] }
 ```
 
 Enable the feature for your email provider. See [Feature Flags](#feature-flags) for all options.
@@ -86,7 +86,7 @@ If you only use one provider, enable just that feature:
 
 ```toml
 [dependencies]
-missive = { version = "0.2", features = ["resend"] }
+missive = { version = "0.3", features = ["resend"] }
 ```
 
 ```bash
@@ -102,7 +102,7 @@ For runtime flexibility (e.g., different providers per environment), enable mult
 
 ```toml
 [dependencies]
-missive = { version = "0.1", features = ["smtp", "resend", "local"] }
+missive = { version = "0.3", features = ["smtp", "resend", "local"] }
 ```
 
 Then configure per environment in `.env`:
@@ -147,7 +147,7 @@ When `EMAIL_PROVIDER` is not set, Missive automatically detects which provider t
 This means zero-config for simple setups:
 
 ```toml
-missive = { version = "0.2", features = ["resend"] }
+missive = { version = "0.3", features = ["resend"] }
 ```
 
 ```bash
@@ -164,10 +164,10 @@ Use `EMAIL_PROVIDER` explicitly when:
 
 ```toml
 # Development setup (local + preview UI)
-missive = { version = "0.1", features = ["dev"] }
+missive = { version = "0.3", features = ["dev"] }
 
 # Everything (all providers + templates)
-missive = { version = "0.1", features = ["full"] }
+missive = { version = "0.3", features = ["full"] }
 ```
 
 ### Available Features
@@ -423,7 +423,11 @@ assert_no_emails_sent(&mailer);
 
 View sent emails in your browser during development.
 
-![Mailbox Preview UI](https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.png">
+  <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
+</picture>
 
 ```rust
 use missive::providers::LocalMailer;
@@ -452,6 +456,32 @@ Then visit `http://localhost:3000/mailbox` to see sent emails.
 - Download attachments
 - Delete individual emails or clear all
 - JSON API for programmatic access
+
+## Interceptors
+
+Interceptors let you modify or block emails before they are sent. Use them to add headers, redirect recipients in development, or enforce business rules.
+
+```rust
+use missive::{Email, InterceptorExt};
+use missive::providers::ResendMailer;
+
+let mailer = ResendMailer::new(api_key)
+    // Add tracking header to all emails
+    .with_interceptor(|email: Email| {
+        Ok(email.header("X-Request-ID", get_request_id()))
+    })
+    // Block emails to certain domains
+    .with_interceptor(|email: Email| {
+        for recipient in &email.to {
+            if recipient.email.ends_with("@blocked.com") {
+                return Err(MailError::SendError("Blocked domain".into()));
+            }
+        }
+        Ok(email)
+    });
+```
+
+See [docs/interceptors.md](./docs/interceptors.md) for more examples including development redirects and multi-tenant branding.
 
 ## Per-Call Mailer Override
 
@@ -512,7 +542,7 @@ async fn send_email(job: SendEmailJob, _ctx: JobContext) -> Result<(), Error> {
 Enable Prometheus-style metrics with `features = ["metrics"]`:
 
 ```toml
-missive = { version = "0.1", features = ["resend", "metrics"] }
+missive = { version = "0.3", features = ["resend", "metrics"] }
 ```
 
 Missive emits these metrics:
@@ -551,7 +581,19 @@ tracing_subscriber::fmt::init();
 
 ## Error Handling
 
-All errors are returned as `MailError`:
+Delivery errors are returned to the caller - missive does not automatically retry or crash. Errors are logged via `tracing::error!` for observability.
+
+```rust
+match deliver(&email).await {
+    Ok(result) => println!("Sent: {}", result.message_id),
+    Err(e) => {
+        // You decide: retry, alert, queue for later, ignore, etc.
+        println!("Failed: {}", e);
+    }
+}
+```
+
+Error variants for granular handling:
 
 ```rust
 use missive::{deliver, MailError};
@@ -641,6 +683,7 @@ let email = Email::new()
 
 For more detailed guides, see the [docs/](./docs/) folder:
 
+- [Interceptors](./docs/interceptors.md) - Modify or block emails before delivery
 - [Providers](./docs/providers.md) - Detailed configuration for each email provider
 - [Testing](./docs/testing.md) - Complete testing guide with all assertion functions
 - [Observability](./docs/observability.md) - Telemetry, metrics, Grafana dashboards, and alerting

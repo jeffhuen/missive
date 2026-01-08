@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-08
+
+### Added
+
+- **Interceptors** for modifying or blocking emails before delivery
+  - `Interceptor` trait for custom email transformations
+  - `InterceptorExt` extension trait with `.with_interceptor()` method
+  - Closure support: `mailer.with_interceptor(|email| Ok(email.header("X-Foo", "bar")))`
+  - Chainable: multiple interceptors can be stacked
+  - Works with `deliver()` and `deliver_many()`
+  - See `docs/interceptors.md` for usage guide
+
 ## [0.2.0] - 2026-01-07
 
 ### Added

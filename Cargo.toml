@@ -1,11 +1,11 @@
 [package]
 name = "missive"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Compose, deliver, and test emails in Rust - pluggable providers with zero configuration"
 license = "MIT"
 repository = "https://github.com/jeffhuen/missive"
-keywords = ["email", "smtp", "mailer", "sendgrid", "resend"]
+keywords = ["email", "smtp", "ses", "sendgrid", "resend"]
 categories = ["email", "web-programming"]
 
 [features]
@@ -45,7 +45,7 @@ dev = ["local", "preview"]
 
 [dependencies]
 # Core
-async-trait = "0.1"
+async-trait = "0.1"  # Required for dyn Mailer compatibility (see src/mailer.rs)
 parking_lot = "0.12"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
