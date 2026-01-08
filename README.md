@@ -423,11 +423,7 @@ assert_no_emails_sent(&mailer);
 
 View sent emails in your browser during development.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
-  <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png">
-</picture>
+![Mailbox Preview UI](https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.png)
 
 ```rust
 use missive::providers::LocalMailer;
