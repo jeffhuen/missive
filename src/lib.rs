@@ -106,7 +106,7 @@ mod storage;
 #[cfg(feature = "local")]
 pub mod testing;
 
-#[cfg(feature = "preview")]
+#[cfg(any(feature = "preview-axum", feature = "preview-actix"))]
 pub mod preview;
 
 #[cfg(feature = "templates")]
@@ -114,9 +114,9 @@ mod template;
 #[cfg(feature = "templates")]
 pub use template::{EmailTemplate, EmailTemplateExt};
 
+use parking_lot::RwLock;
 use std::env;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 #[cfg(feature = "metrics")]
 use std::time::Instant;
@@ -660,8 +660,10 @@ pub async fn deliver(email: &Email) -> Result<DeliveryResult, MailError> {
     {
         let duration = start.elapsed().as_secs_f64();
         let status = if result.is_ok() { "success" } else { "error" };
-        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status).increment(1);
-        metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider).record(duration);
+        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
+            .increment(1);
+        metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider)
+            .record(duration);
     }
 
     match &result {
@@ -687,7 +689,10 @@ pub async fn deliver(email: &Email) -> Result<DeliveryResult, MailError> {
 ///
 /// deliver_with(&email, &mailer).await?;
 /// ```
-pub async fn deliver_with<M: Mailer>(email: &Email, mailer: &M) -> Result<DeliveryResult, MailError> {
+pub async fn deliver_with<M: Mailer>(
+    email: &Email,
+    mailer: &M,
+) -> Result<DeliveryResult, MailError> {
     // Validate required fields early
     validate(email)?;
 
@@ -715,8 +720,10 @@ pub async fn deliver_with<M: Mailer>(email: &Email, mailer: &M) -> Result<Delive
     {
         let duration = start.elapsed().as_secs_f64();
         let status = if result.is_ok() { "success" } else { "error" };
-        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status).increment(1);
-        metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider).record(duration);
+        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
+            .increment(1);
+        metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider)
+            .record(duration);
     }
 
     match &result {
@@ -739,11 +746,7 @@ pub async fn deliver_many(emails: &[Email]) -> Result<Vec<DeliveryResult>, MailE
     let count = emails.len();
     let emails: Vec<Email> = emails.iter().map(prepare_email).collect();
 
-    let span = tracing::info_span!(
-        "missive.deliver_many",
-        provider = provider,
-        count = count,
-    );
+    let span = tracing::info_span!("missive.deliver_many", provider = provider, count = count,);
     let _guard = span.enter();
 
     #[cfg(feature = "metrics")]
@@ -756,8 +759,10 @@ pub async fn deliver_many(emails: &[Email]) -> Result<Vec<DeliveryResult>, MailE
     {
         let duration = start.elapsed().as_secs_f64();
         let status = if result.is_ok() { "success" } else { "error" };
-        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status).increment(count as u64);
-        metrics::counter!("missive_batch_total", "provider" => provider, "status" => status).increment(1);
+        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
+            .increment(count as u64);
+        metrics::counter!("missive_batch_total", "provider" => provider, "status" => status)
+            .increment(1);
         metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider, "batch" => "true").record(duration);
         metrics::histogram!("missive_batch_size", "provider" => provider).record(count as f64);
     }
@@ -808,12 +813,12 @@ pub fn mailer() -> Option<Arc<dyn Mailer>> {
 pub mod prelude {
     pub use crate::Address;
     pub use crate::Attachment;
+    pub use crate::DeliveryResult;
     pub use crate::Email;
     pub use crate::MailError;
     pub use crate::Mailer;
-    pub use crate::DeliveryResult;
     pub use crate::ToAddress;
-    pub use crate::{deliver, deliver_with, deliver_many, is_configured, default_from};
+    pub use crate::{default_from, deliver, deliver_many, deliver_with, is_configured};
 
     #[cfg(feature = "local")]
     pub use crate::Storage;

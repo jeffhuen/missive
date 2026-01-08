@@ -174,11 +174,13 @@ missive = { version = "0.1", features = ["full"] }
 | `postmark` | Postmark API |
 | `unsent` | Unsent API |
 | `local` | LocalMailer - in-memory storage + test assertions |
-| `preview` | Web UI for viewing local emails |
+| `preview` | Web UI for viewing local emails (Axum) |
+| `preview-axum` | Preview UI with Axum |
+| `preview-actix` | Preview UI with Actix |
 | `templates` | Askama template integration |
 | `metrics` | Prometheus-style metrics |
 | `dev` | Enables `local` + `preview` |
-| `full` | All providers + templates |
+| `full` | All providers + templates + preview |
 
 ## Environment Variables
 

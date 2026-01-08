@@ -8,28 +8,30 @@ The preview UI requires `LocalMailer`, which stores emails in `MemoryStorage`.
 
 | Mailer | Storage | Works with Preview |
 |--------|---------|-------------------|
-| `LocalMailer` | `MemoryStorage` | ✅ Yes |
-| `LoggerMailer` | None (console only) | ❌ No |
-| `ResendMailer`, etc. | Sends to provider | ❌ No |
-
-## How It Works
-
-The preview feature provides an **Axum router** that you mount in your application. Missive is a library, so it can't automatically add routes - you control where the preview UI lives.
+| `LocalMailer` | `MemoryStorage` | Yes |
+| `LoggerMailer` | None (console only) | No |
+| `ResendMailer`, etc. | Sends to provider | No |
 
 ## Setup
 
-Enable the `preview` feature (or `dev` which includes it):
+Enable the preview feature for your web framework:
 
 ```toml
-[dependencies]
+# Axum (default)
 missive = { version = "0.1", features = ["preview"] }
-# or
+# or explicitly:
+missive = { version = "0.1", features = ["preview-axum"] }
+
+# Actix
+missive = { version = "0.1", features = ["preview-actix"] }
+
+# Development bundle (local + preview-axum)
 missive = { version = "0.1", features = ["dev"] }
 ```
 
-## Mounting the Preview UI
+## Axum
 
-You must manually add the preview router to your Axum application:
+Mount the preview router in your Axum application:
 
 ```rust
 use axum::Router;
@@ -56,6 +58,54 @@ async fn main() {
 ```
 
 Visit `http://localhost:3000/dev/mailbox` to see sent emails.
+
+### With CSP Nonces
+
+```rust
+use missive::preview::{mailbox_router_with_config, PreviewConfig};
+
+let config = PreviewConfig {
+    script_nonce: Some("abc123".to_string()),
+    style_nonce: Some("def456".to_string()),
+};
+
+let router = mailbox_router_with_config(storage, config);
+```
+
+## Actix
+
+Configure routes on an Actix scope:
+
+```rust
+use actix_web::{App, HttpServer, web};
+use missive::providers::LocalMailer;
+use missive::preview::{actix_configure, ActixAppState, PreviewConfig};
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let mailer = LocalMailer::new();
+    let storage = mailer.storage();
+
+    missive::configure(mailer);
+
+    let state = ActixAppState {
+        storage,
+        config: PreviewConfig::default(),
+    };
+
+    HttpServer::new(move || {
+        let state = state.clone();
+        App::new()
+            .service(
+                web::scope("/dev/mailbox")
+                    .configure(|cfg| actix_configure(cfg, state))
+            )
+    })
+    .bind("127.0.0.1:3000")?
+    .run()
+    .await
+}
+```
 
 ## Using with Auto-Configured Mailer
 
@@ -92,6 +142,17 @@ async fn main() {
 - **Delete** - Remove individual emails or clear all
 - **JSON API** - Programmatic access to mailbox
 
+## Routes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | HTML UI listing all emails |
+| GET | `/json` | JSON API - list all emails |
+| GET | `/{id}` | View single email as JSON |
+| GET | `/{id}/html` | Raw HTML body (for iframe) |
+| GET | `/{id}/attachments/{idx}` | Download attachment |
+| POST | `/clear` | Delete all emails |
+
 ## Development-Only Mounting
 
 Only mount in development builds:
@@ -122,8 +183,6 @@ if std::env::var("ENABLE_MAILBOX_PREVIEW").is_ok() {
 
 ## JSON API
 
-The preview UI exposes a JSON API for programmatic access:
-
 ```bash
 # List all emails
 curl http://localhost:3000/dev/mailbox/json
@@ -139,27 +198,6 @@ curl http://localhost:3000/dev/mailbox/{id}/attachments/{index}
 
 # Clear all emails
 curl -X POST http://localhost:3000/dev/mailbox/clear
-```
-
-## CSP Nonce Support
-
-If your application uses Content Security Policy, pass nonces for inline scripts/styles:
-
-```rust
-use missive::preview::{mailbox_router_with_config, PreviewConfig};
-
-let config = PreviewConfig {
-    script_nonce: Some("abc123".to_string()),
-    style_nonce: Some("def456".to_string()),
-};
-
-let router = mailbox_router_with_config(storage, config);
-```
-
-Nonces can also be passed via query parameters:
-
-```
-http://localhost:3000/dev/mailbox?script_nonce=abc123&style_nonce=def456
 ```
 
 ## Shared Storage

@@ -1,6 +1,6 @@
 //! Mailbox preview UI for development.
 //!
-//! Provides an Axum router that displays emails stored in `MemoryStorage`.
+//! Provides a web UI that displays emails stored in `MemoryStorage`.
 //!
 //! ## Features
 //!
@@ -9,7 +9,7 @@
 //! - Path-based attachment lazy loading
 //! - RFC 5322 compliant recipient rendering
 //!
-//! # Example
+//! # Example (Axum)
 //!
 //! ```rust,ignore
 //! use missive::providers::LocalMailer;
@@ -21,32 +21,53 @@
 //!
 //! let app = Router::new()
 //!     .nest("/dev/mailbox", mailbox_router(storage));
-//!
-//! // Now emails sent via mailer appear at http://localhost:3000/dev/mailbox
 //! ```
 //!
-//! ## With CSP Nonces
+//! # Example (Actix)
 //!
 //! ```rust,ignore
-//! use missive::preview::{mailbox_router_with_config, PreviewConfig};
+//! use missive::providers::LocalMailer;
+//! use missive::preview::{actix_configure, ActixAppState, PreviewConfig};
+//! use actix_web::{App, web};
 //!
-//! let config = PreviewConfig {
-//!     script_nonce: Some("abc123".to_string()),
-//!     style_nonce: Some("def456".to_string()),
-//! };
-//! let router = mailbox_router_with_config(storage, config);
+//! let mailer = LocalMailer::new();
+//! let storage = mailer.storage();
+//! let state = ActixAppState { storage, config: PreviewConfig::default() };
+//!
+//! let app = App::new()
+//!     .service(web::scope("/dev/mailbox").configure(|cfg| actix_configure(cfg, state)));
 //! ```
 
-mod routes;
+mod core;
 
+#[cfg(feature = "preview-axum")]
+mod axum_routes;
+
+#[cfg(feature = "preview-actix")]
+mod actix_routes;
+
+#[cfg(feature = "preview-axum")]
 use std::sync::Arc;
 
-use axum::Router;
-
+#[cfg(feature = "preview-axum")]
 use crate::storage::MemoryStorage;
 
 // Re-export configuration type
-pub use routes::PreviewConfig;
+pub use core::PreviewConfig;
+
+// ============================================================================
+// Axum Support
+// ============================================================================
+
+#[cfg(feature = "preview-axum")]
+pub use axum::Router;
+
+/// Re-exports for testing (Axum).
+#[cfg(feature = "preview-axum")]
+pub mod reexports {
+    pub use axum::body::Body;
+    pub use axum::http::{Request, StatusCode};
+}
 
 /// Create an Axum router for the mailbox preview UI.
 ///
@@ -62,24 +83,41 @@ pub use routes::PreviewConfig;
 /// | GET | `/:id/html` | Raw HTML body (for iframe) |
 /// | GET | `/:id/attachments/:idx` | Download attachment |
 /// | POST | `/clear` | Delete all emails |
-///
-/// ## JSON API
-///
-/// The `/json` endpoint returns JSON including:
-/// - `headers` - Custom email headers
-/// - `provider_options` - Provider-specific options
-/// - `sent_at` - Timestamp (from private storage)
-/// - Full attachment metadata (path, type, headers)
+#[cfg(feature = "preview-axum")]
 pub fn mailbox_router(storage: Arc<MemoryStorage>) -> Router {
-    routes::create_router(storage)
+    axum_routes::create_router(storage)
 }
 
 /// Create a mailbox router with CSP nonce configuration.
-///
-/// This allows specifying nonces for inline scripts and styles to comply
-/// with Content Security Policy.
-///
-/// Nonces can also be passed via query parameters (`?script_nonce=...&style_nonce=...`).
+#[cfg(feature = "preview-axum")]
 pub fn mailbox_router_with_config(storage: Arc<MemoryStorage>, config: PreviewConfig) -> Router {
-    routes::create_router_with_config(storage, config)
+    axum_routes::create_router_with_config(storage, config)
+}
+
+// ============================================================================
+// Actix Support
+// ============================================================================
+
+#[cfg(feature = "preview-actix")]
+pub use actix_routes::AppState as ActixAppState;
+
+/// Configure Actix routes on a scope.
+///
+/// ## Example
+///
+/// ```rust,ignore
+/// use missive::preview::{actix_configure, ActixAppState, PreviewConfig};
+/// use actix_web::{App, web};
+///
+/// let state = ActixAppState {
+///     storage: mailer.storage(),
+///     config: PreviewConfig::default(),
+/// };
+///
+/// App::new()
+///     .service(web::scope("/mailbox").configure(|cfg| actix_configure(cfg, state)));
+/// ```
+#[cfg(feature = "preview-actix")]
+pub fn actix_configure(cfg: &mut actix_web::web::ServiceConfig, state: ActixAppState) {
+    actix_routes::configure(cfg, state)
 }

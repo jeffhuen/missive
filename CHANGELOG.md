@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-01-07
+
+### Added
+
+- **Actix-web support** for mailbox preview UI (`preview-actix` feature)
+  - `actix_configure()` function to mount routes on an Actix scope
+  - `ActixAppState` for shared state management
+- New feature flags:
+  - `preview-axum` - Axum-specific preview (extracted from `preview`)
+  - `preview-actix` - Actix-web preview support
+- `preview` feature now defaults to `preview-axum` for backwards compatibility
+
+### Changed
+
+- Refactored preview module into shared core logic with thin framework adapters
+- Internal reorganization: `preview/core.rs`, `preview/axum_routes.rs`, `preview/actix_routes.rs`
+
 ## [0.1.0] - 2025-01-07
 
 Initial release.

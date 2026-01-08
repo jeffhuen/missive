@@ -1,6 +1,6 @@
 [package]
 name = "missive"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Compose, deliver, and test emails in Rust - pluggable providers with zero configuration"
 license = "MIT"
@@ -29,7 +29,9 @@ mailjet = ["_http"]
 
 # Development & Testing
 local = ["dep:regex"]  # LocalMailer + test assertions (regex for matching)
-preview = ["local", "dep:axum", "dep:askama", "dep:tower-http"]
+preview = ["local", "preview-axum"]  # Default to Axum
+preview-axum = ["local", "dep:axum", "dep:tower-http"]
+preview-actix = ["local", "dep:actix-web"]
 
 # Observability
 metrics = ["dep:metrics"]  # Prometheus-style counters/histograms
@@ -38,7 +40,7 @@ metrics = ["dep:metrics"]  # Prometheus-style counters/histograms
 templates = ["dep:askama"]
 
 # Bundles
-full = ["smtp", "resend", "unsent", "postmark", "sendgrid", "brevo", "mailgun", "amazon_ses", "mailtrap", "mailjet", "local", "templates"]
+full = ["smtp", "resend", "unsent", "postmark", "sendgrid", "brevo", "mailgun", "amazon_ses", "mailtrap", "mailjet", "local", "templates", "preview-axum"]
 dev = ["local", "preview"]
 
 [dependencies]
@@ -62,14 +64,18 @@ lettre = { version = "0.11", default-features = false, features = ["tokio1-rustl
 # Optional: HTTP-based providers
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"], optional = true }
 
-# Optional: Preview UI
+# Optional: Preview UI (Axum)
 axum = { version = "0.8", optional = true }
-askama = { version = "0.13", optional = true }
 tower-http = { version = "0.6", features = ["fs"], optional = true }
+
+# Optional: Preview UI (Actix)
+actix-web = { version = "4", optional = true }
+
+# Optional: Local mailer
 regex = { version = "1", optional = true }
 
 # Optional: Templating
-# askama already listed above
+askama = { version = "0.13", optional = true }
 
 # Optional: Metrics
 metrics = { version = "0.24", optional = true }
@@ -87,3 +93,5 @@ flate2 = { version = "1.0", optional = true }
 tokio = { version = "1", features = ["full", "test-util"] }
 wiremock = "0.6"
 serde_urlencoded = "0.7"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

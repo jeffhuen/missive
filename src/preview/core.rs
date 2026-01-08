@@ -1,25 +1,11 @@
-//! Route handlers for the mailbox preview.
+//! Shared logic for mailbox preview.
 //!
-//! Provides a web UI for viewing emails captured by `LocalMailer`.
-//!
-//! ## Features
-//!
-//! - CSP nonce support for Content Security Policy compliance
-//! - Full JSON API with private/provider_options/headers
-//! - Path-based attachment lazy loading
-//! - RFC 5322 compliant recipient rendering
+//! Framework-agnostic types and rendering functions used by both Axum and Actix adapters.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::{
-    extract::{Path, Query, State},
-    http::{header, StatusCode},
-    response::{Html, IntoResponse, Response},
-    routing::{get, post},
-    Json, Router,
-};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::attachment::AttachmentType;
 use crate::storage::{MemoryStorage, Storage, StoredEmail};
@@ -37,87 +23,47 @@ pub struct PreviewConfig {
     pub style_nonce: Option<String>,
 }
 
-/// Shared state for routes.
-#[derive(Clone)]
-struct AppState {
-    storage: Arc<MemoryStorage>,
-    config: PreviewConfig,
-}
-
-/// Create the mailbox router with default config.
-pub fn create_router(storage: Arc<MemoryStorage>) -> Router {
-    create_router_with_config(storage, PreviewConfig::default())
-}
-
-/// Create the mailbox router with CSP nonce configuration.
-///
-/// ```rust,ignore
-/// use missive::preview::{create_router_with_config, PreviewConfig};
-///
-/// let config = PreviewConfig {
-///     script_nonce: Some("abc123".to_string()),
-///     style_nonce: Some("def456".to_string()),
-/// };
-/// let router = create_router_with_config(storage, config);
-/// ```
-pub fn create_router_with_config(storage: Arc<MemoryStorage>, config: PreviewConfig) -> Router {
-    let state = AppState { storage, config };
-
-    Router::new()
-        .route("/", get(index))
-        .route("/json", get(list_json))
-        .route("/{id}", get(view_email))
-        .route("/{id}/html", get(email_html))
-        .route("/{id}/attachments/{idx}", get(download_attachment))
-        .route("/clear", post(clear_all))
-        .with_state(state)
-}
-
 // ============================================================================
 // Response Types
 // ============================================================================
 
-/// Email list item for the sidebar.
+/// Email list item for JSON API.
 #[derive(Serialize)]
-struct EmailListItem {
-    id: String,
-    subject: String,
-    from: Option<String>,
-    to: Vec<String>,
-    cc: Vec<String>,
-    bcc: Vec<String>,
-    reply_to: Option<String>,
-    sent_at: Option<String>,
-    text_body: Option<String>,
-    html_body: Option<String>,
-    headers: HashMap<String, String>,
-    provider_options: Vec<ProviderOption>,
-    attachments: Vec<AttachmentInfo>,
+pub struct EmailListItem {
+    pub id: String,
+    pub subject: String,
+    pub from: Option<String>,
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub bcc: Vec<String>,
+    pub reply_to: Option<String>,
+    pub sent_at: Option<String>,
+    pub text_body: Option<String>,
+    pub html_body: Option<String>,
+    pub headers: HashMap<String, String>,
+    pub provider_options: Vec<ProviderOption>,
+    pub attachments: Vec<AttachmentInfo>,
 }
 
 /// Provider option key-value pair.
 #[derive(Serialize)]
-struct ProviderOption {
-    key: String,
-    value: String,
+pub struct ProviderOption {
+    pub key: String,
+    pub value: String,
 }
 
 /// Attachment metadata.
 #[derive(Serialize)]
-struct AttachmentInfo {
-    index: usize,
-    filename: String,
-    content_type: String,
-    /// File path for lazy attachments
+pub struct AttachmentInfo {
+    pub index: usize,
+    pub filename: String,
+    pub content_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    path: Option<String>,
-    /// Attachment disposition type
+    pub path: Option<String>,
     #[serde(rename = "type")]
-    disposition: String,
-    /// Custom headers on the attachment
-    headers: HashMap<String, String>,
-    /// Size in bytes (0 for lazy attachments)
-    size: usize,
+    pub disposition: String,
+    pub headers: HashMap<String, String>,
+    pub size: usize,
 }
 
 impl From<&StoredEmail> for EmailListItem {
@@ -127,7 +73,6 @@ impl From<&StoredEmail> for EmailListItem {
         Self {
             id: stored.id.clone(),
             subject: email.subject.clone(),
-            // Use RFC 5322 formatting for proper escaping
             from: email.from.as_ref().map(|a| a.formatted_rfc5322()),
             to: email.to.iter().map(|a| a.formatted_rfc5322()).collect(),
             cc: email.cc.iter().map(|a| a.formatted_rfc5322()).collect(),
@@ -168,83 +113,65 @@ impl From<&StoredEmail> for EmailListItem {
 
 /// Wrapper for JSON list response.
 #[derive(Serialize)]
-struct EmailListResponse {
-    data: Vec<EmailListItem>,
+pub struct EmailListResponse {
+    pub data: Vec<EmailListItem>,
 }
 
 // ============================================================================
-// Handlers
+// Service Functions
 // ============================================================================
 
-/// Query params for CSP nonce override.
-#[derive(Debug, Deserialize, Default)]
-struct IndexQuery {
-    /// Override script nonce via query param
-    script_nonce: Option<String>,
-    /// Override style nonce via query param
-    style_nonce: Option<String>,
+/// Get all emails as EmailListItems.
+pub fn list_emails(storage: &Arc<MemoryStorage>) -> Vec<EmailListItem> {
+    storage.all().iter().map(EmailListItem::from).collect()
 }
 
-/// GET / - Render the mailbox UI.
-///
-/// Always renders the HTML UI. JavaScript auto-selects the first email if present.
-async fn index(
-    State(state): State<AppState>,
-    Query(query): Query<IndexQuery>,
-) -> Html<String> {
-    let emails = state.storage.all();
-    let email_items: Vec<EmailListItem> = emails.iter().map(EmailListItem::from).collect();
-
-    // Merge query param nonces with config nonces (query takes precedence)
-    let script_nonce = query.script_nonce.or(state.config.script_nonce.clone());
-    let style_nonce = query.style_nonce.or(state.config.style_nonce.clone());
-
-    Html(render_index(&email_items, script_nonce, style_nonce))
+/// Get a single email by ID.
+pub fn get_email(storage: &Arc<MemoryStorage>, id: &str) -> Option<EmailListItem> {
+    storage.get(id).map(|e| EmailListItem::from(&e))
 }
 
-/// GET /json - Return all emails as JSON.
-///
-/// Returns `{data: [...]}` with full email details including:
-/// - private fields (via sent_at)
-/// - provider_options
-/// - headers
-/// - attachment metadata (path, type, headers)
-async fn list_json(State(state): State<AppState>) -> Json<EmailListResponse> {
-    let emails: Vec<EmailListItem> = state.storage.all().iter().map(EmailListItem::from).collect();
-    Json(EmailListResponse { data: emails })
+/// Get raw HTML body for an email, with CID references replaced.
+pub fn get_email_html(storage: &Arc<MemoryStorage>, id: &str) -> Option<String> {
+    let stored = storage.get(id)?;
+    let html = stored.email.html_body.clone()?;
+    Some(replace_cid_references(&html, id, &stored.email.attachments))
 }
 
-/// GET /:id - View a single email as JSON.
-async fn view_email(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<EmailListItem>, StatusCode> {
-    state
-        .storage
-        .get(&id)
-        .map(|e| Json(EmailListItem::from(&e)))
-        .ok_or(StatusCode::NOT_FOUND)
+/// Get attachment data and metadata.
+pub struct AttachmentData {
+    pub data: Vec<u8>,
+    pub filename: String,
+    pub content_type: String,
 }
 
-/// GET /:id/html - Return raw HTML body for iframe embedding.
-///
-/// Replaces inline image CID references (cid:filename) with attachment URLs.
-async fn email_html(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Html<String>, StatusCode> {
-    let stored = state.storage.get(&id).ok_or(StatusCode::NOT_FOUND)?;
-    let html = stored.email.html_body.clone().ok_or(StatusCode::NOT_FOUND)?;
+/// Get attachment by email ID and index.
+pub fn get_attachment(
+    storage: &Arc<MemoryStorage>,
+    id: &str,
+    idx: usize,
+) -> Option<AttachmentData> {
+    let stored = storage.get(id)?;
+    let attachment = stored.email.attachments.get(idx)?;
+    let data = attachment.get_data().ok()?;
 
-    // Replace CID references with attachment URLs
-    let html = replace_cid_references(&html, &id, &stored.email.attachments);
-
-    Ok(Html(html))
+    Some(AttachmentData {
+        data,
+        filename: attachment.filename.clone(),
+        content_type: attachment.content_type.clone(),
+    })
 }
+
+/// Clear all emails from storage.
+pub fn clear_emails(storage: &Arc<MemoryStorage>) {
+    storage.clear();
+}
+
+// ============================================================================
+// HTML Rendering
+// ============================================================================
 
 /// Replace inline image CID references with attachment URLs.
-///
-/// Converts `cid:logo.png` or `cid:content-id` to `{id}/attachments/{index}`.
 fn replace_cid_references(
     html: &str,
     email_id: &str,
@@ -252,69 +179,26 @@ fn replace_cid_references(
 ) -> String {
     use regex::Regex;
 
-    // Match "cid:something" in src attributes
     let re = Regex::new(r#""cid:([^"]*)""#).unwrap();
 
     re.replace_all(html, |caps: &regex::Captures| {
         let cid = &caps[1];
 
-        // Find attachment by content_id or filename
-        if let Some((idx, _)) = attachments.iter().enumerate().find(|(_, att)| {
-            att.content_id.as_deref() == Some(cid) || att.filename == cid
-        }) {
+        if let Some((idx, _)) = attachments
+            .iter()
+            .enumerate()
+            .find(|(_, att)| att.content_id.as_deref() == Some(cid) || att.filename == cid)
+        {
             format!("\"{}/attachments/{}\"", email_id, idx)
         } else {
-            // Keep original if not found
             caps[0].to_string()
         }
     })
     .to_string()
 }
 
-/// GET /:id/attachments/:idx - Download an attachment.
-///
-/// Supports both eager (data) and lazy (path) attachments.
-async fn download_attachment(
-    State(state): State<AppState>,
-    Path((id, idx)): Path<(String, usize)>,
-) -> Result<Response, StatusCode> {
-    let stored = state.storage.get(&id).ok_or(StatusCode::NOT_FOUND)?;
-    let attachment = stored
-        .email
-        .attachments
-        .get(idx)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    // Get data - handles both eager (data) and lazy (path) attachments
-    let data = attachment
-        .get_data()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let response = (
-        [
-            (header::CONTENT_TYPE, attachment.content_type.clone()),
-            (
-                header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{}\"", attachment.filename),
-            ),
-        ],
-        data,
-    );
-
-    Ok(response.into_response())
-}
-
-/// POST /clear - Delete all emails.
-async fn clear_all(State(state): State<AppState>) -> StatusCode {
-    state.storage.clear();
-    StatusCode::NO_CONTENT
-}
-
-// ============================================================================
-// Template Rendering
-// ============================================================================
-
-fn render_index(
+/// Render the index HTML page.
+pub fn render_index(
     emails: &[EmailListItem],
     script_nonce: Option<String>,
     style_nonce: Option<String>,
@@ -322,7 +206,6 @@ fn render_index(
     let css = include_str!("../../templates/preview/styles.css");
     let js = include_str!("../../templates/preview/script.js");
 
-    // Build nonce attributes for CSP compliance
     let style_nonce_attr = style_nonce
         .as_ref()
         .map(|n| format!(" nonce=\"{}\"", html_escape(n)))
@@ -362,7 +245,6 @@ fn render_index(
 
     let plural = if emails.len() == 1 { "" } else { "s" };
 
-    // Icons for theme toggle
     let sun_icon = r#"<svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>"#;
     let moon_icon = r#"<svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>"#;
 
