@@ -8,7 +8,7 @@ Enable the `local` feature:
 
 ```toml
 [dev-dependencies]
-missive = { version = "0.1", features = ["local"] }
+missive = { version = "0.4", features = ["local"] }
 ```
 
 ## Basic Usage

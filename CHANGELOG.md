@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-01-09
+
+### Added
+
+- **Standalone preview server** via `tiny_http` (`preview` feature)
+  - `PreviewServer::new(addr, storage)` to create a server
+  - `.spawn()` for fire-and-forget background execution
+  - `.run()` for blocking mode
+  - `serve(addr, storage)` convenience function
+  - No framework dependencies - works with any Rust application
+  - See `docs/preview.md` for usage guide
+
+### Changed
+
+- `preview` feature now uses standalone `tiny_http` server (was alias to `preview-axum`)
+- `preview-axum` and `preview-actix` remain for framework embedding
+- `dev` feature bundle now uses standalone preview
+
 ## [0.3.0] - 2026-01-08
 
 ### Added

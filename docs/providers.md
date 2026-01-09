@@ -449,14 +449,17 @@ Stores emails in `MemoryStorage` for development and testing.
 **For development** - view emails via the [preview UI](./preview.md):
 
 ```rust
-use missive::providers::LocalMailer;
-use missive::preview::mailbox_router;
+use missive::preview::PreviewServer;
 
-let mailer = LocalMailer::new();
-let storage = mailer.storage();
+// Initialize from environment (EMAIL_PROVIDER=local)
+missive::init().ok();
 
-let app = Router::new()
-    .nest("/mailbox", mailbox_router(storage));
+// Start preview server if using local provider
+if let Some(storage) = missive::local_storage() {
+    PreviewServer::new("127.0.0.1:3025", storage)
+        .expect("Failed to start preview server")
+        .spawn();
+}
 ```
 
 **For testing** - assert on sent emails:

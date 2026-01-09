@@ -9,7 +9,36 @@
 //! - Path-based attachment lazy loading
 //! - RFC 5322 compliant recipient rendering
 //!
-//! # Example (Axum)
+//! # Standalone Server (Recommended)
+//!
+//! The simplest way to preview emails during development. No framework required.
+//!
+//! ```rust,ignore
+//! use missive::providers::LocalMailer;
+//! use missive::preview::serve;
+//!
+//! let mailer = LocalMailer::new();
+//!
+//! // Blocking - runs until error
+//! serve("127.0.0.1:3025", mailer.storage())?;
+//! ```
+//!
+//! For background execution:
+//!
+//! ```rust,ignore
+//! use missive::preview::PreviewServer;
+//!
+//! let server = PreviewServer::new("127.0.0.1:3025", mailer.storage())?;
+//! let handle = server.spawn();
+//!
+//! // ... your app runs ...
+//!
+//! handle.shutdown();
+//! ```
+//!
+//! # Axum Integration
+//!
+//! Embed the preview UI into an existing Axum application.
 //!
 //! ```rust,ignore
 //! use missive::providers::LocalMailer;
@@ -23,7 +52,9 @@
 //!     .nest("/dev/mailbox", mailbox_router(storage));
 //! ```
 //!
-//! # Example (Actix)
+//! # Actix Integration
+//!
+//! Embed the preview UI into an existing Actix application.
 //!
 //! ```rust,ignore
 //! use missive::providers::LocalMailer;
@@ -40,6 +71,9 @@
 
 mod core;
 
+#[cfg(feature = "preview")]
+mod standalone;
+
 #[cfg(feature = "preview-axum")]
 mod axum_routes;
 
@@ -54,6 +88,13 @@ use crate::storage::MemoryStorage;
 
 // Re-export configuration type
 pub use core::PreviewConfig;
+
+// ============================================================================
+// Standalone Server
+// ============================================================================
+
+#[cfg(feature = "preview")]
+pub use standalone::{serve, PreviewServer};
 
 // ============================================================================
 // Axum Support

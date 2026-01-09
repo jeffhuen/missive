@@ -46,7 +46,7 @@ Add missive to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-missive = { version = "0.3.1", features = ["resend"] }
+missive = { version = "0.4.0", features = ["resend"] }
 ```
 
 Enable the feature for your email provider. See [Feature Flags](#feature-flags) for all options.
@@ -86,7 +86,7 @@ If you only use one provider, enable just that feature:
 
 ```toml
 [dependencies]
-missive = { version = "0.3.1", features = ["resend"] }
+missive = { version = "0.4.0", features = ["resend"] }
 ```
 
 ```bash
@@ -102,7 +102,7 @@ For runtime flexibility (e.g., different providers per environment), enable mult
 
 ```toml
 [dependencies]
-missive = { version = "0.3.1", features = ["smtp", "resend", "local"] }
+missive = { version = "0.4.0", features = ["smtp", "resend", "local"] }
 ```
 
 Then configure per environment in `.env`:
@@ -147,7 +147,7 @@ When `EMAIL_PROVIDER` is not set, Missive automatically detects which provider t
 This means zero-config for simple setups:
 
 ```toml
-missive = { version = "0.3.1", features = ["resend"] }
+missive = { version = "0.4.0", features = ["resend"] }
 ```
 
 ```bash
@@ -164,10 +164,10 @@ Use `EMAIL_PROVIDER` explicitly when:
 
 ```toml
 # Development setup (local + preview UI)
-missive = { version = "0.3.1", features = ["dev"] }
+missive = { version = "0.4.0", features = ["dev"] }
 
 # Everything (all providers + templates)
-missive = { version = "0.3.1", features = ["full"] }
+missive = { version = "0.4.0", features = ["full"] }
 ```
 
 ### Available Features
@@ -180,9 +180,9 @@ missive = { version = "0.3.1", features = ["full"] }
 | `postmark` | Postmark API |
 | `unsent` | Unsent API |
 | `local` | LocalMailer - in-memory storage + test assertions |
-| `preview` | Web UI for viewing local emails (Axum) |
-| `preview-axum` | Preview UI with Axum |
-| `preview-actix` | Preview UI with Actix |
+| `preview` | Standalone preview server (tiny_http) |
+| `preview-axum` | Preview UI embedded in Axum |
+| `preview-actix` | Preview UI embedded in Actix |
 | `templates` | Askama template integration |
 | `metrics` | Prometheus-style metrics |
 | `dev` | Enables `local` + `preview` |
@@ -429,20 +429,23 @@ View sent emails in your browser during development.
   <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.webp">
 </picture>
 
-### With Environment Variables (Recommended)
+### Standalone Server (Recommended)
 
-Use `EMAIL_PROVIDER=local` in development and mount the preview UI conditionally:
+The simplest option - runs on a separate port with no framework dependencies:
 
 ```rust
-use missive::preview::mailbox_router;
+use missive::preview::PreviewServer;
 
 // Initialize mailer from environment variables
 missive::init().ok();
 
-// Mount preview UI only when using local provider
-// Both nest() and nest_service() work here
+// Start preview server if using local provider
 if let Some(storage) = missive::local_storage() {
-    app = app.nest("/dev/mailbox", mailbox_router(storage));
+    PreviewServer::new("127.0.0.1:3025", storage)
+        .expect("Failed to start preview server")
+        .spawn();
+    
+    println!("Preview UI at http://127.0.0.1:3025");
 }
 ```
 
@@ -451,29 +454,30 @@ Set in your `.env`:
 ```bash
 EMAIL_PROVIDER=local
 EMAIL_FROM=noreply@example.com
-EMAIL_FROM_NAME=My App
 ```
 
-This way the preview UI only appears in development. In production with a real provider, `local_storage()` returns `None` and the route isn't mounted.
+### Axum Integration
 
-### Manual Configuration (For Tests)
-
-For tests or when you need direct access to the mailer:
+Embed the preview UI into your Axum app:
 
 ```rust
-use missive::providers::LocalMailer;
 use missive::preview::mailbox_router;
 
-let mailer = LocalMailer::new();
-let storage = mailer.storage();
+missive::init().ok();
 
-missive::configure(mailer);
+let mut app = Router::new()
+    .route("/", get(home));
 
-let app = Router::new()
-    .nest("/mailbox", mailbox_router(storage));
+if let Some(storage) = missive::local_storage() {
+    app = app.nest("/dev/mailbox", mailbox_router(storage));
+}
 ```
 
-Then visit `http://localhost:3000/dev/mailbox` to see sent emails.
+Then visit `http://localhost:3000/dev/mailbox`.
+
+### Actix Integration
+
+See [docs/preview.md](./docs/preview.md) for Actix configuration.
 
 ### Features
 
@@ -482,6 +486,7 @@ Then visit `http://localhost:3000/dev/mailbox` to see sent emails.
 - View email headers
 - Download attachments
 - Delete individual emails or clear all
+- Dark mode toggle
 - JSON API for programmatic access
 
 ## Interceptors
@@ -569,7 +574,7 @@ async fn send_email(job: SendEmailJob, _ctx: JobContext) -> Result<(), Error> {
 Enable Prometheus-style metrics with `features = ["metrics"]`:
 
 ```toml
-missive = { version = "0.3.1", features = ["resend", "metrics"] }
+missive = { version = "0.4.0", features = ["resend", "metrics"] }
 ```
 
 Missive emits these metrics:

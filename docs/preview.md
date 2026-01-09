@@ -12,26 +12,189 @@ The preview UI requires `LocalMailer`, which stores emails in `MemoryStorage`.
 | `LoggerMailer` | None (console only) | No |
 | `ResendMailer`, etc. | Sends to provider | No |
 
-## Setup
+## Quick Start
 
-Enable the preview feature for your web framework:
+Choose the integration that fits your setup:
+
+| Feature | Use Case | Dependency |
+|---------|----------|------------|
+| `preview` | Standalone server (recommended) | `tiny_http` |
+| `preview-axum` | Embed in Axum app | `axum` |
+| `preview-actix` | Embed in Actix app | `actix-web` |
 
 ```toml
-# Axum (default)
-missive = { version = "0.1", features = ["preview"] }
-# or explicitly:
-missive = { version = "0.1", features = ["preview-axum"] }
+# Standalone server (simplest - no framework required)
+missive = { version = "0.4", features = ["preview"] }
 
-# Actix
-missive = { version = "0.1", features = ["preview-actix"] }
+# Embed in Axum app
+missive = { version = "0.4", features = ["preview-axum"] }
 
-# Development bundle (local + preview-axum)
-missive = { version = "0.1", features = ["dev"] }
+# Embed in Actix app
+missive = { version = "0.4", features = ["preview-actix"] }
+
+# Development bundle (local + standalone preview)
+missive = { version = "0.4", features = ["dev"] }
 ```
 
-## Axum
+---
 
-Mount the preview router in your Axum application:
+## Standalone Server (Recommended)
+
+The simplest option. Runs a lightweight HTTP server on a separate port - no framework integration needed.
+
+### How It Works
+
+The standalone preview server and your mailer share the same in-memory storage:
+
+```
+Your App                          Preview Server
+   │                                    │
+   ▼                                    ▼
+LocalMailer ──► MemoryStorage ◄── PreviewServer
+   │               (shared)             │
+   ▼                                    ▼
+missive::deliver()              http://127.0.0.1:3025
+```
+
+When you send an email with `LocalMailer`, it's stored in `MemoryStorage`. The preview server reads from the same storage to display emails in the browser.
+
+### Environment Setup
+
+Add to your `.env` file:
+
+```bash
+# Use LocalMailer (stores emails in memory)
+EMAIL_PROVIDER=local
+EMAIL_FROM=noreply@example.com
+```
+
+### Complete Example
+
+Here's a full working example with an async web app:
+
+```rust
+use axum::{Router, routing::get};
+use missive::{Email, deliver};
+
+#[tokio::main]
+async fn main() {
+    // 1. Initialize mailer from environment (EMAIL_PROVIDER=local)
+    missive::init().expect("Failed to initialize mailer");
+
+    // 2. Start preview server if using local provider
+    if let Some(storage) = missive::local_storage() {
+        missive::preview::PreviewServer::new("127.0.0.1:3025", storage)
+            .expect("Failed to start preview server")
+            .spawn();
+        
+        println!("Preview UI at http://127.0.0.1:3025");
+    }
+
+    // 3. Your app - emails sent here appear in the preview UI
+    let app = Router::new()
+        .route("/", get(|| async { "Hello" }))
+        .route("/send", get(send_test_email));
+
+    println!("App at http://127.0.0.1:3000");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+async fn send_test_email() -> &'static str {
+    let email = Email::new()
+        .to("user@example.com")
+        .subject("Test Email")
+        .text_body("This will appear in the preview UI!");
+
+    match deliver(&email).await {
+        Ok(_) => "Email sent! Check http://127.0.0.1:3025",
+        Err(e) => {
+            eprintln!("Failed: {}", e);
+            "Failed to send"
+        }
+    }
+}
+```
+
+Now:
+1. Visit `http://127.0.0.1:3000/send` to send a test email
+2. Visit `http://127.0.0.1:3025` to see it in the preview UI
+
+### Minimal Example
+
+If you just want the preview server without environment config:
+
+```rust
+use missive::providers::LocalMailer;
+use missive::preview::PreviewServer;
+
+fn main() {
+    // Create mailer and get its storage
+    let mailer = LocalMailer::new();
+    let storage = mailer.storage();
+    
+    // Configure as global mailer
+    missive::configure(mailer);
+
+    // Start preview server (fire-and-forget)
+    PreviewServer::new("127.0.0.1:3025", storage)
+        .expect("Failed to start preview server")
+        .spawn();
+
+    println!("Preview UI at http://127.0.0.1:3025");
+    
+    // Your app continues...
+}
+```
+
+### Blocking Mode
+
+For a dedicated preview server binary (blocks forever):
+
+```rust
+use missive::preview::serve;
+
+fn main() -> std::io::Result<()> {
+    let mailer = missive::providers::LocalMailer::new();
+    missive::configure(mailer);
+
+    let storage = missive::local_storage().unwrap();
+    
+    println!("Preview server at http://127.0.0.1:3025");
+    serve("127.0.0.1:3025", storage)  // Blocks forever
+}
+```
+
+### With CSP Nonces
+
+If your app requires Content Security Policy nonces:
+
+```rust
+use missive::preview::{PreviewServer, PreviewConfig};
+
+let config = PreviewConfig {
+    script_nonce: Some("abc123".to_string()),
+    style_nonce: Some("def456".to_string()),
+};
+
+PreviewServer::with_config("127.0.0.1:3025", storage, config)?
+    .spawn();
+```
+
+### Key Points
+
+| Concept | Explanation |
+|---------|-------------|
+| **Shared storage** | `LocalMailer` and `PreviewServer` must use the same `MemoryStorage` instance |
+| **Fire-and-forget** | `spawn()` starts a background thread - no handle to manage |
+| **Port separation** | Preview runs on a different port (e.g., 3025) from your app (e.g., 3000) |
+| **Development only** | Don't run the preview server in production |
+
+---
+
+## Axum Integration
+
+Embed the preview UI into your existing Axum application at a route like `/dev/mailbox`.
 
 ```rust
 use axum::Router;
@@ -40,14 +203,12 @@ use missive::preview::mailbox_router;
 
 #[tokio::main]
 async fn main() {
-    // Create local mailer and get shared storage
     let mailer = LocalMailer::new();
     let storage = mailer.storage();
 
-    // Configure as global mailer
     missive::configure(mailer);
 
-    // Mount preview UI at your chosen path
+    // Mount preview UI at /dev/mailbox
     let app = Router::new()
         .nest("/dev/mailbox", mailbox_router(storage))
         .route("/", axum::routing::get(|| async { "Hello" }));
@@ -58,6 +219,51 @@ async fn main() {
 ```
 
 Visit `http://localhost:3000/dev/mailbox` to see sent emails.
+
+### With Auto-Configured Mailer
+
+When conditionally mounting routes (e.g., only in development), you need to reassign the router. There are two patterns:
+
+**Pattern 1: Mutable binding**
+
+```rust
+use axum::{Router, routing::get};
+use missive::preview::mailbox_router;
+
+#[tokio::main]
+async fn main() {
+    missive::init().expect("Failed to initialize mailer");
+
+    // Use `let mut` since we reassign `app` inside the if block
+    let mut app = Router::new()
+        .route("/", get(|| async { "Hello" }));
+
+    if let Some(storage) = missive::local_storage() {
+        app = app.nest("/dev/mailbox", mailbox_router(storage));
+    }
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+**Pattern 2: Shadowing (immutable)**
+
+```rust
+let app = Router::new()
+    .route("/", get(|| async { "Hello" }));
+
+// Shadow `app` with a new binding
+let app = if let Some(storage) = missive::local_storage() {
+    app.nest("/dev/mailbox", mailbox_router(storage))
+} else {
+    app
+};
+
+axum::serve(listener, app).await.unwrap();
+```
+
+Both patterns work. Use whichever you prefer - shadowing avoids `mut` but requires the else branch.
 
 ### With CSP Nonces
 
@@ -72,7 +278,9 @@ let config = PreviewConfig {
 let router = mailbox_router_with_config(storage, config);
 ```
 
-## Actix
+---
+
+## Actix Integration
 
 Configure routes on an Actix scope:
 
@@ -107,30 +315,7 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-## Using with Auto-Configured Mailer
-
-If you're using environment-based configuration (`EMAIL_PROVIDER=local`), get the shared storage via `local_storage()`:
-
-```rust
-use missive::local_storage;
-use missive::preview::mailbox_router;
-
-#[tokio::main]
-async fn main() {
-    // Initialize from environment (EMAIL_PROVIDER=local)
-    missive::init().expect("Failed to initialize mailer");
-
-    let mut app = Router::new()
-        .route("/", get(home));
-
-    // Mount preview if local storage is available
-    if let Some(storage) = local_storage() {
-        app = app.nest("/dev/mailbox", mailbox_router(storage));
-    }
-
-    // ...
-}
-```
+---
 
 ## Features
 
@@ -140,6 +325,7 @@ async fn main() {
 - **Headers** - Inspect all email headers
 - **Attachments** - Download attachments
 - **Delete** - Remove individual emails or clear all
+- **Dark mode** - Toggle between light and dark themes
 - **JSON API** - Programmatic access to mailbox
 
 ## Routes
@@ -153,52 +339,28 @@ async fn main() {
 | GET | `/{id}/attachments/{idx}` | Download attachment |
 | POST | `/clear` | Delete all emails |
 
-## Development-Only Mounting
-
-Only mount in development builds:
-
-```rust
-fn build_router(storage: Arc<MemoryStorage>) -> Router {
-    let mut app = Router::new()
-        .route("/", get(home));
-
-    #[cfg(debug_assertions)]
-    {
-        app = app.nest("/dev/mailbox", mailbox_router(storage));
-    }
-
-    app
-}
-```
-
-Or using environment variables:
-
-```rust
-if std::env::var("ENABLE_MAILBOX_PREVIEW").is_ok() {
-    if let Some(storage) = missive::local_storage() {
-        app = app.nest("/dev/mailbox", mailbox_router(storage));
-    }
-}
-```
+---
 
 ## JSON API
 
 ```bash
 # List all emails
-curl http://localhost:3000/dev/mailbox/json
+curl http://localhost:3025/json
 
 # Get specific email
-curl http://localhost:3000/dev/mailbox/{id}
+curl http://localhost:3025/{id}
 
 # Get HTML body (for iframe embedding)
-curl http://localhost:3000/dev/mailbox/{id}/html
+curl http://localhost:3025/{id}/html
 
 # Download attachment
-curl http://localhost:3000/dev/mailbox/{id}/attachments/{index}
+curl http://localhost:3025/{id}/attachments/{index}
 
 # Clear all emails
-curl -X POST http://localhost:3000/dev/mailbox/clear
+curl -X POST http://localhost:3025/clear
 ```
+
+---
 
 ## Shared Storage
 
@@ -220,6 +382,38 @@ let mailer = LocalMailer::with_storage(Arc::clone(&storage));
 // Both approaches work - storage is shared
 ```
 
+---
+
+## Development-Only Mounting
+
+### Using Conditional Compilation
+
+```rust
+fn setup_app(storage: Arc<MemoryStorage>) -> Router {
+    let app = Router::new()
+        .route("/", get(home));
+
+    #[cfg(debug_assertions)]
+    let app = app.nest("/dev/mailbox", mailbox_router(storage));
+
+    app
+}
+```
+
+### Using Environment Variables
+
+```rust
+if std::env::var("ENABLE_MAILBOX_PREVIEW").is_ok() {
+    if let Some(storage) = missive::local_storage() {
+        // Axum: app = app.nest("/dev/mailbox", mailbox_router(storage));
+        // Standalone:
+        PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
+    }
+}
+```
+
+---
+
 ## Storage Limits
 
 By default, `MemoryStorage` keeps all emails. For long-running dev servers:
@@ -237,16 +431,22 @@ tokio::spawn(async move {
 });
 ```
 
+---
+
 ## Production Warning
 
 The mailbox preview is for development only. In production:
 
 1. Use a real email provider (`resend`, `sendgrid`, etc.)
-2. Don't mount the preview routes
+2. Don't mount the preview routes or start the preview server
 3. Consider disabling the `preview` feature entirely
 
 ```rust
 // Only compile preview code in dev builds
 #[cfg(debug_assertions)]
-use missive::preview::mailbox_router;
+{
+    if let Some(storage) = missive::local_storage() {
+        missive::preview::PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
+    }
+}
 ```

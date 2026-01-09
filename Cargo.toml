@@ -1,6 +1,6 @@
 [package]
 name = "missive"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 description = "Compose, deliver, and test emails in Rust - pluggable providers with zero configuration"
 license = "MIT"
@@ -29,9 +29,9 @@ mailjet = ["_http"]
 
 # Development & Testing
 local = ["dep:regex"]  # LocalMailer + test assertions (regex for matching)
-preview = ["local", "preview-axum"]  # Default to Axum
-preview-axum = ["local", "dep:axum", "dep:tower-http"]
-preview-actix = ["local", "dep:actix-web"]
+preview = ["local", "dep:tiny_http"]  # Standalone preview server (primary)
+preview-axum = ["local", "dep:axum", "dep:tower-http"]  # Embed in Axum app
+preview-actix = ["local", "dep:actix-web"]  # Embed in Actix app
 
 # Observability
 metrics = ["dep:metrics"]  # Prometheus-style counters/histograms
@@ -71,6 +71,9 @@ tower-http = { version = "0.6", features = ["fs"], optional = true }
 # Optional: Preview UI (Actix)
 actix-web = { version = "4", optional = true }
 
+# Optional: Standalone preview server
+tiny_http = { version = "0.12", optional = true }
+
 # Optional: Local mailer
 regex = { version = "1", optional = true }
 
@@ -95,3 +98,4 @@ wiremock = "0.6"
 serde_urlencoded = "0.7"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+ureq = { version = "2", features = ["json"] }

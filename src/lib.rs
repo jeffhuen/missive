@@ -107,7 +107,11 @@ mod storage;
 #[cfg(feature = "local")]
 pub mod testing;
 
-#[cfg(any(feature = "preview-axum", feature = "preview-actix"))]
+#[cfg(any(
+    feature = "preview",
+    feature = "preview-axum",
+    feature = "preview-actix"
+))]
 pub mod preview;
 
 #[cfg(feature = "templates")]

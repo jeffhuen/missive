@@ -186,7 +186,7 @@ Enable the `metrics` feature:
 
 ```toml
 [dependencies]
-missive = { version = "0.1", features = ["resend", "metrics"] }
+missive = { version = "0.4", features = ["resend", "metrics"] }
 ```
 
 ### Available Metrics
@@ -338,7 +338,7 @@ Combine tracing and metrics for full observability:
 
 ```toml
 [dependencies]
-missive = { version = "0.1", features = ["resend", "metrics"] }
+missive = { version = "0.4", features = ["resend", "metrics"] }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 metrics-exporter-prometheus = "0.16"
 ```
