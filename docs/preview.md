@@ -196,6 +196,8 @@ PreviewServer::with_config("127.0.0.1:3025", storage, config)?
 
 Embed the preview UI into your existing Axum application at a route like `/dev/mailbox`.
 
+### Basic Setup
+
 ```rust
 use axum::Router;
 use missive::providers::LocalMailer;
@@ -220,42 +222,49 @@ async fn main() {
 
 Visit `http://localhost:3000/dev/mailbox` to see sent emails.
 
-### With Auto-Configured Mailer
+### Apps with Custom State
 
-When conditionally mounting routes (e.g., only in development), you need to reassign the router. There are two patterns:
-
-**Pattern 1: Mutable binding**
+`mailbox_router()` returns `Router<()>`. If your app uses custom state, you need `.nest_service()` instead of `.nest()`:
 
 ```rust
-use axum::{Router, routing::get};
-use missive::preview::mailbox_router;
-
-#[tokio::main]
-async fn main() {
-    missive::init().expect("Failed to initialize mailer");
-
-    // Use `let mut` since we reassign `app` inside the if block
-    let mut app = Router::new()
-        .route("/", get(|| async { "Hello" }));
-
-    if let Some(storage) = missive::local_storage() {
-        app = app.nest("/dev/mailbox", mailbox_router(storage));
-    }
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-}
+// Your app has custom state
+let app: Router<AppState> = Router::new()
+    .route("/", get(home))
+    .nest_service("/dev/mailbox", mailbox_router(storage));  // not .nest()
 ```
 
-**Pattern 2: Shadowing (immutable)**
+| Your App | Method | Why |
+|----------|--------|-----|
+| `Router<()>` | `.nest()` | Same state type |
+| `Router<AppState>` | `.nest_service()` | Different state types - treats nested router as opaque service |
+
+### Conditional Mounting
+
+To mount the preview only when `LocalMailer` is configured (e.g., in development), you need to conditionally add the route. There are two Rust idioms for this:
+
+**Mutable binding:**
+
+```rust
+let mut app = Router::new()
+    .route("/health", get(health))
+    .nest("/api", api::router());
+
+if let Some(storage) = missive::local_storage() {
+    app = app.nest_service("/dev/mailbox", mailbox_router(storage));
+}
+
+axum::serve(listener, app).await.unwrap();
+```
+
+**Shadowing (avoids `mut`):**
 
 ```rust
 let app = Router::new()
-    .route("/", get(|| async { "Hello" }));
+    .route("/health", get(health))
+    .nest("/api", api::router());
 
-// Shadow `app` with a new binding
 let app = if let Some(storage) = missive::local_storage() {
-    app.nest("/dev/mailbox", mailbox_router(storage))
+    app.nest_service("/dev/mailbox", mailbox_router(storage))
 } else {
     app
 };
@@ -263,7 +272,7 @@ let app = if let Some(storage) = missive::local_storage() {
 axum::serve(listener, app).await.unwrap();
 ```
 
-Both patterns work. Use whichever you prefer - shadowing avoids `mut` but requires the else branch.
+Both achieve the same result. Shadowing is often preferred in Rust because it avoids `mut` when you're just transforming a value once.
 
 ### With CSP Nonces
 
@@ -394,18 +403,20 @@ fn setup_app(storage: Arc<MemoryStorage>) -> Router {
         .route("/", get(home));
 
     #[cfg(debug_assertions)]
-    let app = app.nest("/dev/mailbox", mailbox_router(storage));
+    let app = app.nest_service("/dev/mailbox", mailbox_router(storage));
 
     app
 }
 ```
+
+> **Note:** Use `.nest()` if your app is `Router<()>`, or `.nest_service()` if your app has custom state. See [Apps with Custom State](#apps-with-custom-state).
 
 ### Using Environment Variables
 
 ```rust
 if std::env::var("ENABLE_MAILBOX_PREVIEW").is_ok() {
     if let Some(storage) = missive::local_storage() {
-        // Axum: app = app.nest("/dev/mailbox", mailbox_router(storage));
+        // Axum: app = app.nest_service("/dev/mailbox", mailbox_router(storage));
         // Standalone:
         PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
     }

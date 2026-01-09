@@ -469,11 +469,13 @@ let mut app = Router::new()
     .route("/", get(home));
 
 if let Some(storage) = missive::local_storage() {
-    app = app.nest("/dev/mailbox", mailbox_router(storage));
+    // Use .nest_service() if your app has custom state (Router<AppState>)
+    // Use .nest() if your app is Router<()>
+    app = app.nest_service("/dev/mailbox", mailbox_router(storage));
 }
 ```
 
-Then visit `http://localhost:3000/dev/mailbox`.
+Then visit `http://localhost:3000/dev/mailbox`. See [docs/preview.md](./docs/preview.md) for more details.
 
 ### Actix Integration
 
