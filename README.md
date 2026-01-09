@@ -429,24 +429,51 @@ View sent emails in your browser during development.
   <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-light.webp">
 </picture>
 
+### With Environment Variables (Recommended)
+
+Use `EMAIL_PROVIDER=local` in development and mount the preview UI conditionally:
+
+```rust
+use missive::preview::mailbox_router;
+
+// Initialize mailer from environment variables
+missive::init().ok();
+
+// Mount preview UI only when using local provider
+// Both nest() and nest_service() work here
+if let Some(storage) = missive::local_storage() {
+    app = app.nest("/dev/mailbox", mailbox_router(storage));
+}
+```
+
+Set in your `.env`:
+
+```bash
+EMAIL_PROVIDER=local
+EMAIL_FROM=noreply@example.com
+EMAIL_FROM_NAME=My App
+```
+
+This way the preview UI only appears in development. In production with a real provider, `local_storage()` returns `None` and the route isn't mounted.
+
+### Manual Configuration (For Tests)
+
+For tests or when you need direct access to the mailer:
+
 ```rust
 use missive::providers::LocalMailer;
 use missive::preview::mailbox_router;
 
-// Create mailer and get shared storage
 let mailer = LocalMailer::new();
 let storage = mailer.storage();
 
-// Configure as global mailer
 missive::configure(mailer);
 
-// Mount the preview UI in your Axum router
 let app = Router::new()
-    .nest("/mailbox", mailbox_router(storage))
-    .route("/", get(home));
+    .nest("/mailbox", mailbox_router(storage));
 ```
 
-Then visit `http://localhost:3000/mailbox` to see sent emails.
+Then visit `http://localhost:3000/dev/mailbox` to see sent emails.
 
 ### Features
 
