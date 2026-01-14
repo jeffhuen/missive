@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.5.0] - 2026-01-13
+
+### Added
+
+- **Gmail** - Gmail API provider (`gmail` feature)
+  - OAuth2 Bearer token authentication
+  - RFC 2822 message format via lettre (media upload with `uploadType=media`)
+  - Full support for HTML, text, attachments, CC, BCC, reply-to
+  - Response includes `threadId` and `labelIds` from Gmail
+
+- **SocketLabs** - SocketLabs Injection API provider (`socketlabs` feature)
+  - Bearer token authentication (v1 API keys have been decommissioned by SocketLabs)
+  - Support for AMP emails via `amp_body` provider option
+  - Merge data support for personalization
+  - Custom headers, message tracking IDs, and template support
+
+### Documentation
+
+- Added HTTP client architecture documentation explaining reqwest choice
+
 ## [0.4.0] - 2026-01-09
 
 ### Added

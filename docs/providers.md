@@ -431,6 +431,147 @@ let email = Email::new()
 
 ---
 
+## SocketLabs
+
+[SocketLabs](https://socketlabs.com) - Email delivery and infrastructure platform.
+
+**Feature:** `socketlabs`
+
+> **Note:** Injection API Keys (Version 1) have been decommissioned by SocketLabs. You must generate a SocketLabs API Key with `Injection Api` access from the SocketLabs dashboard. The API key is used as a Bearer token for authentication.
+
+**Environment Variables:**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SOCKETLABS_SERVER_ID` | Yes | Your SocketLabs server ID |
+| `SOCKETLABS_API_KEY` | Yes | Your SocketLabs API key (with Injection Api access) |
+
+**Programmatic Configuration:**
+
+```rust
+use missive::providers::SocketLabsMailer;
+
+let mailer = SocketLabsMailer::new("12345", "your-api-key");
+```
+
+**Supported Features:**
+
+All standard email features are supported including friendly names on addresses:
+
+```rust
+use missive::Email;
+
+let email = Email::new()
+    .from(("Sender Name", "sender@example.com"))
+    .to(("Recipient Name", "recipient@example.com"))
+    .cc("cc@example.com")
+    .bcc("bcc@example.com")
+    .reply_to("reply@example.com")
+    .subject("Hello")
+    .text_body("Plain text content")
+    .html_body("<html>HTML content</html>")
+    .header("X-Custom-Header", "value")
+    .attachment(attachment);
+```
+
+**Provider Options:**
+
+```rust
+use missive::Email;
+use serde_json::json;
+
+let email = Email::new()
+    .from("sender@example.com")
+    .to("user@example.com")
+    .subject("Hello")
+    // SocketLabs-specific options
+    .provider_option("api_template", "template-id")
+    .provider_option("mailing_id", "batch-001")
+    .provider_option("message_id", "msg-001")
+    .provider_option("charset", "UTF-8")
+    .provider_option("amp_body", "<html amp4email>...</html>")
+    .provider_option("merge_data", json!({
+        "PerMessage": [{"firstname": "John"}],
+        "Global": {"company": "Acme Inc"}
+    }));
+```
+
+**Available Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `api_template` | String | Template identifier from Email Content Manager |
+| `mailing_id` | String | Special header for tracking email batches |
+| `message_id` | String | Special header for tracking individual messages |
+| `charset` | String | Character encoding (default: UTF-8) |
+| `amp_body` | String | AMP HTML content for dynamic emails |
+| `merge_data` | Object | Data for inline merge feature with `PerMessage` and `Global` keys |
+
+---
+
+## Gmail
+
+[Gmail API](https://developers.google.com/gmail/api) - Send emails via Google's Gmail service.
+
+**Feature:** `gmail`
+
+**Environment Variables:**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GMAIL_ACCESS_TOKEN` | Yes | OAuth2 access token with `gmail.send` scope |
+
+**Authentication:**
+
+Gmail requires an OAuth2 access token with the `gmail.send` scope. This provider does NOT handle token refresh - you must provide a valid access token.
+
+Common authentication approaches:
+- **Service account with domain-wide delegation** - For automated systems sending as users in a Google Workspace domain
+- **OAuth2 web/desktop flow** - For user-consented access to their Gmail account
+- **Google Cloud Application Default Credentials** - When running on GCP with appropriate service account
+
+**Programmatic Configuration:**
+
+```rust
+use missive::providers::GmailMailer;
+
+let mailer = GmailMailer::new("your-oauth2-access-token");
+```
+
+**Example:**
+
+```bash
+EMAIL_PROVIDER=gmail
+GMAIL_ACCESS_TOKEN=ya29.xxx...your-access-token
+```
+
+**Technical Details:**
+
+Gmail API supports two methods for sending emails:
+1. **JSON with base64url-encoded `raw` field** - standard approach
+2. **Media upload with raw RFC 2822** - what this provider uses
+
+This provider uses the media upload approach (`uploadType=media`) with `Content-Type: message/rfc822`. The RFC 2822 message is built using lettre internally (shared with the SMTP provider), so all standard email features (HTML, text, attachments, CC, BCC, etc.) are fully supported.
+
+**Response Data:**
+
+The `DeliveryResult` includes Gmail-specific data:
+
+```rust
+let result = mailer.deliver(&email).await?;
+
+// Message ID from Gmail
+println!("Message ID: {}", result.message_id);
+
+// Gmail-specific response includes threadId and labelIds
+if let Some(response) = result.provider_response {
+    println!("Thread ID: {}", response["threadId"]);
+    println!("Labels: {:?}", response["labelIds"]);
+}
+```
+
+---
+
 ## Development Providers
 
 These providers don't send real emails - they're for development, testing, and debugging.

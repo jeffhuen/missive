@@ -8,7 +8,7 @@ Compose, deliver, test, and preview emails in Rust. Plug and play.
   <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.webp">
 </picture>
 
-Missive comes with adapters for popular transactional email providers including Amazon SES, Mailgun, Resend, SendGrid, Postmark, SMTP, and more. For local development, it includes an in-memory mailbox with a web-based preview UI, plus a logger provider for debugging. Zero configuration required for most setups.
+Missive comes with adapters for popular transactional email providers including Amazon SES, Gmail, Mailgun, Resend, SendGrid, Postmark, SocketLabs, SMTP, and more. For local development, it includes an in-memory mailbox with a web-based preview UI, plus a logger provider for debugging. No initialization code required for most setups.
 
 ## Requirements
 
@@ -46,7 +46,7 @@ Add missive to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-missive = { version = "0.4.0", features = ["resend"] }
+missive = { version = "0.5.0", features = ["resend"] }
 ```
 
 Enable the feature for your email provider. See [Feature Flags](#feature-flags) for all options.
@@ -66,6 +66,8 @@ Missive supports popular transactional email services out of the box:
 | Mailjet | `mailjet` | `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` |
 | Amazon SES | `amazon_ses` | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
 | Mailtrap | `mailtrap` | `MAILTRAP_API_KEY` |
+| SocketLabs | `socketlabs` | `SOCKETLABS_SERVER_ID`, `SOCKETLABS_API_KEY` |
+| Gmail | `gmail` | `GMAIL_ACCESS_TOKEN` |
 | Unsent | `unsent` | `UNSENT_API_KEY` |
 | Local | `local` | (none) |
 | Logger | (always available) | (none) |
@@ -86,7 +88,7 @@ If you only use one provider, enable just that feature:
 
 ```toml
 [dependencies]
-missive = { version = "0.4.0", features = ["resend"] }
+missive = { version = "0.5.0", features = ["resend"] }
 ```
 
 ```bash
@@ -102,7 +104,7 @@ For runtime flexibility (e.g., different providers per environment), enable mult
 
 ```toml
 [dependencies]
-missive = { version = "0.4.0", features = ["smtp", "resend", "local"] }
+missive = { version = "0.5.0", features = ["smtp", "resend", "local"] }
 ```
 
 Then configure per environment in `.env`:
@@ -147,7 +149,7 @@ When `EMAIL_PROVIDER` is not set, Missive automatically detects which provider t
 This means zero-config for simple setups:
 
 ```toml
-missive = { version = "0.4.0", features = ["resend"] }
+missive = { version = "0.5.0", features = ["resend"] }
 ```
 
 ```bash
@@ -164,10 +166,10 @@ Use `EMAIL_PROVIDER` explicitly when:
 
 ```toml
 # Development setup (local + preview UI)
-missive = { version = "0.4.0", features = ["dev"] }
+missive = { version = "0.5.0", features = ["dev"] }
 
 # Everything (all providers + templates)
-missive = { version = "0.4.0", features = ["full"] }
+missive = { version = "0.5.0", features = ["full"] }
 ```
 
 ### Available Features
@@ -178,6 +180,13 @@ missive = { version = "0.4.0", features = ["full"] }
 | `resend` | Resend API |
 | `sendgrid` | SendGrid API |
 | `postmark` | Postmark API |
+| `brevo` | Brevo API (formerly Sendinblue) |
+| `mailgun` | Mailgun API |
+| `mailjet` | Mailjet API |
+| `amazon_ses` | Amazon SES API |
+| `mailtrap` | Mailtrap API |
+| `socketlabs` | SocketLabs Injection API |
+| `gmail` | Gmail API (OAuth2) |
 | `unsent` | Unsent API |
 | `local` | LocalMailer - in-memory storage + test assertions |
 | `preview` | Standalone preview server (tiny_http) |
@@ -576,7 +585,7 @@ async fn send_email(job: SendEmailJob, _ctx: JobContext) -> Result<(), Error> {
 Enable Prometheus-style metrics with `features = ["metrics"]`:
 
 ```toml
-missive = { version = "0.4.0", features = ["resend", "metrics"] }
+missive = { version = "0.5.0", features = ["resend", "metrics"] }
 ```
 
 Missive emits these metrics:

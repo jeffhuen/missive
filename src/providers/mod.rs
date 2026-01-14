@@ -16,6 +16,8 @@
 //! | [`AmazonSesMailer`] | `amazon_ses` | Amazon SES API |
 //! | [`MailtrapMailer`] | `mailtrap` | Mailtrap API (testing/staging) |
 //! | [`MailjetMailer`] | `mailjet` | Mailjet API |
+//! | [`SocketLabsMailer`] | `socketlabs` | SocketLabs Injection API |
+//! | [`GmailMailer`] | `gmail` | Gmail API (OAuth2) |
 //! | [`LocalMailer`] | `local` | In-memory storage for dev/testing |
 //! | [`LoggerMailer`] | (none) | Logs emails without storing |
 
@@ -68,6 +70,16 @@ pub use mailtrap::MailtrapMailer;
 mod mailjet;
 #[cfg(feature = "mailjet")]
 pub use mailjet::MailjetMailer;
+
+#[cfg(feature = "socketlabs")]
+mod socketlabs;
+#[cfg(feature = "socketlabs")]
+pub use socketlabs::SocketLabsMailer;
+
+#[cfg(feature = "gmail")]
+mod gmail;
+#[cfg(feature = "gmail")]
+pub use gmail::GmailMailer;
 
 #[cfg(feature = "local")]
 mod local;

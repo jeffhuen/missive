@@ -40,7 +40,7 @@
 //!
 //! | Variable | Description |
 //! |----------|-------------|
-//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `logger`, `logger_full` |
+//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `socketlabs`, `gmail`, `logger`, `logger_full` |
 //! | `EMAIL_FROM` | Default sender email |
 //! | `EMAIL_FROM_NAME` | Default sender name |
 //! | `SMTP_HOST` | SMTP server host |
@@ -59,6 +59,9 @@
 //! | `AWS_SECRET_ACCESS_KEY` | AWS secret key |
 //! | `MAILTRAP_API_KEY` | Mailtrap API key |
 //! | `MAILTRAP_SANDBOX_INBOX_ID` | Mailtrap sandbox inbox ID (optional) |
+//! | `SOCKETLABS_SERVER_ID` | SocketLabs server ID |
+//! | `SOCKETLABS_API_KEY` | SocketLabs API key |
+//! | `GMAIL_ACCESS_TOKEN` | Gmail OAuth2 access token |
 //!
 //! ## Feature Flags
 //!
@@ -71,6 +74,8 @@
 //! - `mailgun` - Mailgun API provider
 //! - `amazon_ses` - Amazon SES API provider
 //! - `mailtrap` - Mailtrap API provider (testing/staging)
+//! - `socketlabs` - SocketLabs Injection API provider
+//! - `gmail` - Gmail API provider (OAuth2)
 //! - `local` - LocalMailer for development and testing
 //! - `preview` - Mailbox preview web UI
 //! - `metrics` - Prometheus-style metrics (counters/histograms)
@@ -211,6 +216,14 @@ fn detect_provider() -> Option<&'static str> {
     #[cfg(feature = "mailtrap")]
     if env::var("MAILTRAP_API_KEY").is_ok() {
         return Some("mailtrap");
+    }
+    #[cfg(feature = "socketlabs")]
+    if env::var("SOCKETLABS_API_KEY").is_ok() && env::var("SOCKETLABS_SERVER_ID").is_ok() {
+        return Some("socketlabs");
+    }
+    #[cfg(feature = "gmail")]
+    if env::var("GMAIL_ACCESS_TOKEN").is_ok() {
+        return Some("gmail");
     }
     #[cfg(feature = "smtp")]
     if env::var("SMTP_HOST").is_ok() {
@@ -394,6 +407,34 @@ fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
                 .into(),
         )),
 
+        #[cfg(feature = "socketlabs")]
+        "socketlabs" => {
+            let server_id = env::var("SOCKETLABS_SERVER_ID")
+                .map_err(|_| MailError::Configuration("SOCKETLABS_SERVER_ID not set".into()))?;
+            let api_key = env::var("SOCKETLABS_API_KEY")
+                .map_err(|_| MailError::Configuration("SOCKETLABS_API_KEY not set".into()))?;
+            Ok(Arc::new(providers::SocketLabsMailer::new(server_id, api_key)))
+        }
+        #[cfg(not(feature = "socketlabs"))]
+        "socketlabs" => Err(MailError::Configuration(
+            "EMAIL_PROVIDER=socketlabs but 'socketlabs' feature is not enabled. \
+            Add `features = [\"socketlabs\"]` to Cargo.toml"
+                .into(),
+        )),
+
+        #[cfg(feature = "gmail")]
+        "gmail" => {
+            let token = env::var("GMAIL_ACCESS_TOKEN")
+                .map_err(|_| MailError::Configuration("GMAIL_ACCESS_TOKEN not set".into()))?;
+            Ok(Arc::new(providers::GmailMailer::new(token)))
+        }
+        #[cfg(not(feature = "gmail"))]
+        "gmail" => Err(MailError::Configuration(
+            "EMAIL_PROVIDER=gmail but 'gmail' feature is not enabled. \
+            Add `features = [\"gmail\"]` to Cargo.toml"
+                .into(),
+        )),
+
         #[cfg(feature = "local")]
         "local" => {
             // Use global shared storage so preview UI can access emails
@@ -411,7 +452,7 @@ fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
         "logger_full" => Ok(Arc::new(providers::LoggerMailer::full())),
 
         _ => Err(MailError::Configuration(format!(
-            "Unknown EMAIL_PROVIDER: {}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, local, logger, logger_full",
+            "Unknown EMAIL_PROVIDER: {}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, socketlabs, gmail, local, logger, logger_full",
             provider
         ))),
     }
@@ -560,6 +601,30 @@ pub fn is_configured() -> bool {
             tracing::warn!(
                 "EMAIL_PROVIDER=mailtrap but 'mailtrap' feature is not enabled. \
                 Add `features = [\"mailtrap\"]` to Cargo.toml"
+            );
+            false
+        }
+
+        #[cfg(feature = "socketlabs")]
+        "socketlabs" => {
+            env::var("SOCKETLABS_SERVER_ID").is_ok() && env::var("SOCKETLABS_API_KEY").is_ok()
+        }
+        #[cfg(not(feature = "socketlabs"))]
+        "socketlabs" => {
+            tracing::warn!(
+                "EMAIL_PROVIDER=socketlabs but 'socketlabs' feature is not enabled. \
+                Add `features = [\"socketlabs\"]` to Cargo.toml"
+            );
+            false
+        }
+
+        #[cfg(feature = "gmail")]
+        "gmail" => env::var("GMAIL_ACCESS_TOKEN").is_ok(),
+        #[cfg(not(feature = "gmail"))]
+        "gmail" => {
+            tracing::warn!(
+                "EMAIL_PROVIDER=gmail but 'gmail' feature is not enabled. \
+                Add `features = [\"gmail\"]` to Cargo.toml"
             );
             false
         }

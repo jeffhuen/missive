@@ -24,3 +24,7 @@ mod resend_test;
 mod sendgrid_test;
 #[path = "adapters/unsent_test.rs"]
 mod unsent_test;
+#[path = "adapters/socketlabs_test.rs"]
+mod socketlabs_test;
+#[path = "adapters/gmail_test.rs"]
+mod gmail_test;
