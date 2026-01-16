@@ -158,9 +158,7 @@ async fn deliver_with_400_response() {
 
     Mock::given(method("POST"))
         .and(path("/emails"))
-        .respond_with(
-            ResponseTemplate::new(400).set_body_string("Missing required field: 'to'"),
-        )
+        .respond_with(ResponseTemplate::new(400).set_body_string("Missing required field: 'to'"))
         .expect(1)
         .mount(&server)
         .await;

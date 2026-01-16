@@ -6,6 +6,8 @@
 mod amazon_ses_test;
 #[path = "adapters/brevo_test.rs"]
 mod brevo_test;
+#[path = "adapters/gmail_test.rs"]
+mod gmail_test;
 #[path = "adapters/local_test.rs"]
 mod local_test;
 #[path = "adapters/logger_test.rs"]
@@ -22,9 +24,7 @@ mod postmark_test;
 mod resend_test;
 #[path = "adapters/sendgrid_test.rs"]
 mod sendgrid_test;
-#[path = "adapters/unsent_test.rs"]
-mod unsent_test;
 #[path = "adapters/socketlabs_test.rs"]
 mod socketlabs_test;
-#[path = "adapters/gmail_test.rs"]
-mod gmail_test;
+#[path = "adapters/unsent_test.rs"]
+mod unsent_test;

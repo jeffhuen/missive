@@ -351,7 +351,10 @@ mod tests {
         assert_eq!(cloned.email_count(), 1);
 
         // Deliver through clone
-        cloned.deliver(&Email::new().subject("Test 2")).await.unwrap();
+        cloned
+            .deliver(&Email::new().subject("Test 2"))
+            .await
+            .unwrap();
         assert_eq!(mailer.email_count(), 2);
     }
 }

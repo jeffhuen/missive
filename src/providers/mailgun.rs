@@ -107,10 +107,7 @@ impl MailgunMailer {
     }
 
     fn build_form(&self, email: &Email) -> Result<Form, MailError> {
-        let from = email
-            .from
-            .as_ref()
-            .ok_or(MailError::MissingField("from"))?;
+        let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
             return Err(MailError::MissingField("to"));

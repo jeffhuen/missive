@@ -138,10 +138,7 @@ async fn deliver_with_sending_options_returns_ok() {
         .to("steve.rogers@example.com")
         .subject("Hello, Avengers!")
         .html_body("<h1>Hello</h1>")
-        .provider_option(
-            "sending_options",
-            json!({"dkim": "yes", "tracking": "no"}),
-        );
+        .provider_option("sending_options", json!({"dkim": "yes", "tracking": "no"}));
 
     Mock::given(method("POST"))
         .and(path("/avengers.com/messages"))

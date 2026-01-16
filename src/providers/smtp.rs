@@ -36,6 +36,7 @@ pub struct SmtpMailer {
 
 impl SmtpMailer {
     /// Create a new SMTP mailer builder with TLS (STARTTLS on port 587).
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(host: &str, port: u16) -> SmtpBuilder {
         SmtpBuilder {
             host: host.to_string(),
@@ -56,10 +57,7 @@ impl SmtpMailer {
 
     /// Build a lettre Message from our Email struct.
     fn build_message(&self, email: &Email) -> Result<Message, MailError> {
-        let from = email
-            .from
-            .as_ref()
-            .ok_or(MailError::MissingField("from"))?;
+        let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
             return Err(MailError::MissingField("to"));
@@ -94,12 +92,11 @@ impl SmtpMailer {
         let message = if email.attachments.is_empty() {
             // Simple message without attachments
             match (&email.html_body, &email.text_body) {
-                (Some(html), Some(text)) => builder
-                    .multipart(MultiPart::alternative_plain_html(text.clone(), html.clone()))?,
+                (Some(html), Some(text)) => builder.multipart(
+                    MultiPart::alternative_plain_html(text.clone(), html.clone()),
+                )?,
                 (Some(html), None) => builder.header(ContentType::TEXT_HTML).body(html.clone())?,
-                (None, Some(text)) => {
-                    builder.header(ContentType::TEXT_PLAIN).body(text.clone())?
-                }
+                (None, Some(text)) => builder.header(ContentType::TEXT_PLAIN).body(text.clone())?,
                 (None, None) => builder
                     .header(ContentType::TEXT_PLAIN)
                     .body(String::new())?,
@@ -145,8 +142,10 @@ impl SmtpMailer {
                         LettreAttachment::new_inline(cid.clone())
                             .body(attachment.data.clone(), content_type)
                     }
-                    AttachmentType::Attachment => LettreAttachment::new(attachment.filename.clone())
-                        .body(attachment.data.clone(), content_type),
+                    AttachmentType::Attachment => {
+                        LettreAttachment::new(attachment.filename.clone())
+                            .body(attachment.data.clone(), content_type)
+                    }
                 };
 
                 multipart = multipart.singlepart(lettre_attachment);

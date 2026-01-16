@@ -45,12 +45,11 @@ fn format_email_summary(emails: &[StoredEmail]) -> String {
         .enumerate()
         .map(|(i, stored)| {
             let e = &stored.email;
-            let to = e
-                .to
-                .iter()
-                .map(|a| a.email.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
+            let to =
+                e.to.iter()
+                    .map(|a| a.email.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
             let from = e
                 .from
                 .as_ref()
@@ -122,9 +121,13 @@ pub fn assert_email_count(mailer: &LocalMailer, expected: usize) {
 /// Panics if no email was sent to the address.
 pub fn assert_email_to(mailer: &LocalMailer, email: &str) {
     let emails = mailer.emails();
-    let found = emails
-        .iter()
-        .any(|stored| stored.email.to.iter().any(|a| a.email.eq_ignore_ascii_case(email)));
+    let found = emails.iter().any(|stored| {
+        stored
+            .email
+            .to
+            .iter()
+            .any(|a| a.email.eq_ignore_ascii_case(email))
+    });
 
     assert!(
         found,
@@ -184,7 +187,9 @@ pub fn assert_email_subject(mailer: &LocalMailer, subject: &str) {
 /// Panics if no matching email was found.
 pub fn assert_email_subject_contains(mailer: &LocalMailer, text: &str) {
     let emails = mailer.emails();
-    let found = emails.iter().any(|stored| stored.email.subject.contains(text));
+    let found = emails
+        .iter()
+        .any(|stored| stored.email.subject.contains(text));
 
     assert!(
         found,
@@ -233,8 +238,7 @@ pub fn flush_emails(mailer: &LocalMailer) -> Vec<StoredEmail> {
 /// Get all emails sent to a specific address.
 pub fn get_emails_to(mailer: &LocalMailer, email: &str) -> Vec<StoredEmail> {
     mailer.find_emails(|e| {
-        e.to
-            .iter()
+        e.to.iter()
             .any(|addr| addr.email.eq_ignore_ascii_case(email))
     })
 }
@@ -284,7 +288,7 @@ pub fn assert_email_html_contains(mailer: &LocalMailer, text: &str) {
         html.contains(text),
         "Expected HTML body to contain '{}', but it didn't.\n\nLast email:\n{}\n\nHTML body (first 500 chars):\n{}",
         text,
-        format_email_summary(&[last.clone()]),
+        format_email_summary(std::slice::from_ref(last)),
         &html[..html.len().min(500)]
     );
 }
@@ -305,7 +309,7 @@ pub fn assert_email_text_contains(mailer: &LocalMailer, text: &str) {
         body.contains(text),
         "Expected text body to contain '{}', but it didn't.\n\nLast email:\n{}\n\nText body (first 500 chars):\n{}",
         text,
-        format_email_summary(&[last.clone()]),
+        format_email_summary(std::slice::from_ref(last)),
         &body[..body.len().min(500)]
     );
 }
@@ -320,7 +324,11 @@ pub fn assert_email_has_attachment(mailer: &LocalMailer, filename: &str) {
     let last = emails
         .first()
         .expect("Expected at least one email to be sent, but none were sent");
-    let has_attachment = last.email.attachments.iter().any(|a| a.filename == filename);
+    let has_attachment = last
+        .email
+        .attachments
+        .iter()
+        .any(|a| a.filename == filename);
 
     let attachment_list = last
         .email
@@ -334,7 +342,7 @@ pub fn assert_email_has_attachment(mailer: &LocalMailer, filename: &str) {
         has_attachment,
         "Expected email to have attachment '{}'.\n\nLast email:\n{}\n\nAttachments: [{}]",
         filename,
-        format_email_summary(&[last.clone()]),
+        format_email_summary(std::slice::from_ref(last)),
         attachment_list
     );
 }
@@ -360,7 +368,7 @@ pub fn assert_email_subject_matches(mailer: &LocalMailer, pattern: &str) {
         "Expected subject to match pattern '{}', but was '{}'.\n\nLast email:\n{}",
         pattern,
         last.email.subject,
-        format_email_summary(&[last.clone()])
+        format_email_summary(std::slice::from_ref(last))
     );
 }
 
@@ -381,7 +389,7 @@ pub fn assert_email_html_matches(mailer: &LocalMailer, pattern: &str) {
         re.is_match(html),
         "Expected HTML body to match pattern '{}', but it didn't.\n\nLast email:\n{}\n\nHTML body (first 500 chars):\n{}",
         pattern,
-        format_email_summary(&[last.clone()]),
+        format_email_summary(std::slice::from_ref(last)),
         &html[..html.len().min(500)]
     );
 }
@@ -403,7 +411,7 @@ pub fn assert_email_text_matches(mailer: &LocalMailer, pattern: &str) {
         re.is_match(text),
         "Expected text body to match pattern '{}', but it didn't.\n\nLast email:\n{}\n\nText body (first 500 chars):\n{}",
         pattern,
-        format_email_summary(&[last.clone()]),
+        format_email_summary(std::slice::from_ref(last)),
         &text[..text.len().min(500)]
     );
 }

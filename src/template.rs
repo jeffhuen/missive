@@ -82,7 +82,10 @@ pub trait EmailTemplate: Template {
             .render()
             .map_err(|e| MailError::TemplateError(e.to_string()))?;
 
-        let mut email = Email::new().subject(&self.subject()).to(self.to()).html_body(&html);
+        let mut email = Email::new()
+            .subject(self.subject())
+            .to(self.to())
+            .html_body(&html);
 
         if let Some(from) = self.from() {
             email = email.from(from);

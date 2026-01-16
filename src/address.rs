@@ -471,9 +471,7 @@ mod tests {
         let result = Address::parse("");
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(
-            matches!(err, MailError::InvalidAddress(msg) if msg.contains("not a valid email"))
-        );
+        assert!(matches!(err, MailError::InvalidAddress(msg) if msg.contains("not a valid email")));
     }
 
     #[test]

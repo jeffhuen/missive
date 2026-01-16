@@ -108,10 +108,7 @@ impl MailtrapMailer {
     }
 
     fn build_request(&self, email: &Email) -> Result<MailtrapRequest, MailError> {
-        let from = email
-            .from
-            .as_ref()
-            .ok_or(MailError::MissingField("from"))?;
+        let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
             return Err(MailError::MissingField("to"));

@@ -108,16 +108,32 @@ impl SocketLabsMailer {
 
         let mut message = SocketLabsMessage {
             from: SocketLabsAddress::from_address(from),
-            to: email.to.iter().map(SocketLabsAddress::from_address).collect(),
+            to: email
+                .to
+                .iter()
+                .map(SocketLabsAddress::from_address)
+                .collect(),
             cc: if email.cc.is_empty() {
                 None
             } else {
-                Some(email.cc.iter().map(SocketLabsAddress::from_address).collect())
+                Some(
+                    email
+                        .cc
+                        .iter()
+                        .map(SocketLabsAddress::from_address)
+                        .collect(),
+                )
             },
             bcc: if email.bcc.is_empty() {
                 None
             } else {
-                Some(email.bcc.iter().map(SocketLabsAddress::from_address).collect())
+                Some(
+                    email
+                        .bcc
+                        .iter()
+                        .map(SocketLabsAddress::from_address)
+                        .collect(),
+                )
             },
             subject: email.subject.clone(),
             html_body: email.html_body.clone(),
@@ -191,13 +207,18 @@ impl SocketLabsMailer {
         Ok(message)
     }
 
-    fn build_request(&self, messages: Vec<SocketLabsMessage>) -> Result<SocketLabsRequest, MailError> {
-        let server_id: i64 = self
-            .server_id
-            .parse()
-            .map_err(|_| MailError::Configuration(format!("Invalid server_id: {}", self.server_id)))?;
+    fn build_request(
+        &self,
+        messages: Vec<SocketLabsMessage>,
+    ) -> Result<SocketLabsRequest, MailError> {
+        let server_id: i64 = self.server_id.parse().map_err(|_| {
+            MailError::Configuration(format!("Invalid server_id: {}", self.server_id))
+        })?;
 
-        Ok(SocketLabsRequest { server_id, messages })
+        Ok(SocketLabsRequest {
+            server_id,
+            messages,
+        })
     }
 }
 

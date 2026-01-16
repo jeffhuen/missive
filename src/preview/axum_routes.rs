@@ -13,9 +13,7 @@ use serde::Deserialize;
 
 use crate::storage::MemoryStorage;
 
-use super::core::{
-    self, AttachmentData, EmailListItem, EmailListResponse, PreviewConfig,
-};
+use super::core::{self, AttachmentData, EmailListItem, EmailListResponse, PreviewConfig};
 
 /// Shared state for routes.
 #[derive(Clone)]
@@ -51,10 +49,7 @@ struct IndexQuery {
 }
 
 /// GET / - Render the mailbox UI.
-async fn index(
-    State(state): State<AppState>,
-    Query(query): Query<IndexQuery>,
-) -> Html<String> {
+async fn index(State(state): State<AppState>, Query(query): Query<IndexQuery>) -> Html<String> {
     let emails = core::list_emails(&state.storage);
     let script_nonce = query.script_nonce.or(state.config.script_nonce.clone());
     let style_nonce = query.style_nonce.or(state.config.style_nonce.clone());
@@ -92,9 +87,11 @@ async fn download_attachment(
     State(state): State<AppState>,
     Path((id, idx)): Path<(String, usize)>,
 ) -> Result<Response, StatusCode> {
-    let AttachmentData { data, filename, content_type } =
-        core::get_attachment(&state.storage, &id, idx)
-            .ok_or(StatusCode::NOT_FOUND)?;
+    let AttachmentData {
+        data,
+        filename,
+        content_type,
+    } = core::get_attachment(&state.storage, &id, idx).ok_or(StatusCode::NOT_FOUND)?;
 
     let response = (
         [

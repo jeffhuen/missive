@@ -233,7 +233,10 @@ impl AmazonSesMailer {
 
         // Build headers map
         let mut headers = vec![
-            ("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string()),
+            (
+                "Content-Type".to_string(),
+                "application/x-www-form-urlencoded".to_string(),
+            ),
             ("Host".to_string(), host.clone()),
             ("X-Amz-Date".to_string(), amz_date_str.clone()),
             ("Content-Length".to_string(), body.len().to_string()),
@@ -339,17 +342,17 @@ fn amz_datetime(dt: &DateTime<Utc>) -> String {
 
 /// Build a MIME message from an Email.
 fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
-    let from = email
-        .from
-        .as_ref()
-        .ok_or(MailError::MissingField("from"))?;
+    let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
     if email.to.is_empty() {
         return Err(MailError::MissingField("to"));
     }
 
     let mut message = String::new();
-    let boundary = format!("----=_Part_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+    let boundary = format!(
+        "----=_Part_{}",
+        uuid::Uuid::new_v4().to_string().replace("-", "")
+    );
 
     // Headers
     message.push_str(&format!("From: {}\r\n", from.formatted()));
@@ -434,9 +437,18 @@ fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
         }
     } else {
         // Complex case: with attachments
-        let mixed_boundary = format!("----=_Mixed_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
-        let alt_boundary = format!("----=_Alt_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
-        let related_boundary = format!("----=_Related_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+        let mixed_boundary = format!(
+            "----=_Mixed_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        );
+        let alt_boundary = format!(
+            "----=_Alt_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        );
+        let related_boundary = format!(
+            "----=_Related_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        );
 
         message.push_str(&format!(
             "Content-Type: multipart/mixed; boundary=\"{}\"\r\n\r\n",
@@ -585,7 +597,8 @@ impl Mailer for AmazonSesMailer {
             ))
         } else {
             // Parse error XML
-            let error_code = extract_xml_value(&body, "Code").unwrap_or_else(|| "Unknown".to_string());
+            let error_code =
+                extract_xml_value(&body, "Code").unwrap_or_else(|| "Unknown".to_string());
             let error_message =
                 extract_xml_value(&body, "Message").unwrap_or_else(|| "Unknown error".to_string());
 

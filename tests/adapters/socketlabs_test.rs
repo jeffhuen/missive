@@ -55,8 +55,12 @@ async fn successful_delivery_returns_ok() {
         .and(body_string_contains("\"serverId\":1234"))
         .and(header("Authorization", "Bearer some_key"))
         .and(body_string_contains("\"Subject\":\"Hello, Avengers!\""))
-        .and(body_string_contains("\"emailAddress\":\"tony.stark@example.com\""))
-        .and(body_string_contains("\"emailAddress\":\"steve.rogers@example.com\""))
+        .and(body_string_contains(
+            "\"emailAddress\":\"tony.stark@example.com\"",
+        ))
+        .and(body_string_contains(
+            "\"emailAddress\":\"steve.rogers@example.com\"",
+        ))
         .and(body_string_contains("\"HtmlBody\":\"<h1>Hello</h1>\""))
         .respond_with(success_response())
         .expect(1)
@@ -270,7 +274,10 @@ async fn deliver_with_amp_body_returns_ok() {
         .to("avengers@example.com")
         .subject("Hello!")
         .html_body("<html>Fallback</html>")
-        .provider_option("amp_body", "<html amp4email><body>Dynamic AMP content</body></html>");
+        .provider_option(
+            "amp_body",
+            "<html amp4email><body>Dynamic AMP content</body></html>",
+        );
 
     Mock::given(method("POST"))
         .and(path("/email"))
@@ -341,7 +348,10 @@ async fn deliver_with_error_response() {
 
     let result = mailer.deliver(&valid_email()).await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("AuthenticationFailed"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("AuthenticationFailed"));
 }
 
 #[tokio::test]

@@ -58,8 +58,7 @@ fn error_response() -> ResponseTemplate {
 #[tokio::test]
 async fn successful_delivery_returns_ok() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     Mock::given(method("POST"))
         .and(path("/"))
@@ -79,8 +78,7 @@ async fn successful_delivery_returns_ok() {
 #[tokio::test]
 async fn delivery_with_tags_returns_ok() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     let email = Email::new()
         .from("guybrush.threepwood@pirates.grog")
@@ -88,17 +86,16 @@ async fn delivery_with_tags_returns_ok() {
         .subject("Mighty Pirate Newsletter")
         .text_body("Hello")
         .html_body("<h1>Hello</h1>")
-        .provider_option(
-            "tags",
-            json!([{"name": "name1", "value": "test1"}]),
-        )
+        .provider_option("tags", json!([{"name": "name1", "value": "test1"}]))
         .provider_option("configuration_set_name", "configuration_set_name1");
 
     Mock::given(method("POST"))
         .and(path("/"))
         .and(body_string_contains("Action=SendRawEmail"))
         .and(body_string_contains("Version=2010-12-01"))
-        .and(body_string_contains("ConfigurationSetName=configuration_set_name1"))
+        .and(body_string_contains(
+            "ConfigurationSetName=configuration_set_name1",
+        ))
         .and(body_string_contains("Tags.member.1.Name=name1"))
         .and(body_string_contains("Tags.member.1.Value=test1"))
         .respond_with(success_response())
@@ -115,8 +112,7 @@ async fn delivery_with_tags_returns_ok() {
 #[tokio::test]
 async fn deliver_with_all_fields_returns_ok() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     let email = Email::new()
         .from(("G Threepwood", "guybrush.threepwood@pirates.grog"))
@@ -176,8 +172,7 @@ async fn optional_config_params_are_present_when_set() {
 #[tokio::test]
 async fn optional_config_params_not_present_when_not_set() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     // Create a custom matcher that ensures Source is NOT in the body
     Mock::given(method("POST"))
@@ -199,8 +194,7 @@ async fn optional_config_params_not_present_when_not_set() {
 #[tokio::test]
 async fn api_error_parses_correctly() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     Mock::given(method("POST"))
         .and(path("/"))
@@ -223,8 +217,7 @@ async fn api_error_parses_correctly() {
 #[tokio::test]
 async fn deliver_without_from_returns_error() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     let email = Email::new()
         .to("elaine.marley@triisland.gov")
@@ -239,8 +232,7 @@ async fn deliver_without_from_returns_error() {
 #[tokio::test]
 async fn deliver_without_to_returns_error() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     let email = Email::new()
         .from("guybrush.threepwood@pirates.grog")
@@ -259,8 +251,7 @@ async fn deliver_without_to_returns_error() {
 #[tokio::test]
 async fn delivery_with_security_token() {
     let server = MockServer::start().await;
-    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret")
-        .host(server.uri());
+    let mailer = AmazonSesMailer::new("us-east-1", "test_access", "test_secret").host(server.uri());
 
     let email = Email::new()
         .from("guybrush.threepwood@pirates.grog")

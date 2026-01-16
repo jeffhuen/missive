@@ -39,7 +39,9 @@ async fn deliver_many_returns_ok() {
         .subject("Hello, Avengers!")
         .text_body("Hello!");
 
-    let result = mailer.deliver_many(&[email_to_steve, email_to_natasha]).await;
+    let result = mailer
+        .deliver_many(&[email_to_steve, email_to_natasha])
+        .await;
     assert!(result.is_ok());
     let ids = result.unwrap();
     assert_eq!(ids.len(), 2);
@@ -101,7 +103,10 @@ async fn can_simulate_failure() {
 
     let result = mailer.deliver(&email).await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("SMTP connection refused"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("SMTP connection refused"));
 
     // Clear failure
     mailer.clear_failure();

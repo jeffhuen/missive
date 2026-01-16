@@ -73,9 +73,10 @@ impl Storage for MemoryStorage {
 
         // Store sent_at in the email's private field
         let mut email = email;
-        email
-            .private
-            .insert("sent_at".to_string(), serde_json::json!(sent_at.to_rfc3339()));
+        email.private.insert(
+            "sent_at".to_string(),
+            serde_json::json!(sent_at.to_rfc3339()),
+        );
 
         let stored = StoredEmail {
             id: id.clone(),

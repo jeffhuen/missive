@@ -73,7 +73,10 @@ fn subject_replaces_previous_subject() {
 #[test]
 fn html_body_sets_html_body() {
     let email = Email::new().html_body("<h1>Hello, Avengers!</h1>");
-    assert_eq!(email.html_body.as_deref(), Some("<h1>Hello, Avengers!</h1>"));
+    assert_eq!(
+        email.html_body.as_deref(),
+        Some("<h1>Hello, Avengers!</h1>")
+    );
 }
 
 #[test]
@@ -201,7 +204,10 @@ fn bcc_adds_multiple_recipients() {
 #[test]
 fn header_adds_header() {
     let email = Email::new().header("X-Accept-Language", "en");
-    assert_eq!(email.headers.get("X-Accept-Language"), Some(&"en".to_string()));
+    assert_eq!(
+        email.headers.get("X-Accept-Language"),
+        Some(&"en".to_string())
+    );
 }
 
 #[test]
@@ -210,7 +216,10 @@ fn header_adds_multiple_headers() {
         .header("X-Accept-Language", "en")
         .header("X-Mailer", "missive");
 
-    assert_eq!(email.headers.get("X-Accept-Language"), Some(&"en".to_string()));
+    assert_eq!(
+        email.headers.get("X-Accept-Language"),
+        Some(&"en".to_string())
+    );
     assert_eq!(email.headers.get("X-Mailer"), Some(&"missive".to_string()));
 }
 
@@ -250,10 +259,7 @@ fn put_private_adds_multiple_private_data() {
 #[test]
 fn provider_option_adds_option() {
     let email = Email::new().provider_option("tag", "welcome");
-    assert_eq!(
-        email.provider_options.get("tag"),
-        Some(&json!("welcome"))
-    );
+    assert_eq!(email.provider_options.get("tag"), Some(&json!("welcome")));
 }
 
 #[test]

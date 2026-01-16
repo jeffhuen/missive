@@ -90,10 +90,7 @@ impl GmailMailer {
 
     /// Build a lettre Message from our Email struct (RFC 2822 format).
     fn build_message(&self, email: &Email) -> Result<Message, MailError> {
-        let from = email
-            .from
-            .as_ref()
-            .ok_or(MailError::MissingField("from"))?;
+        let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
             return Err(MailError::MissingField("to"));
@@ -123,12 +120,11 @@ impl GmailMailer {
         let message = if email.attachments.is_empty() {
             // Simple message without attachments
             match (&email.html_body, &email.text_body) {
-                (Some(html), Some(text)) => builder
-                    .multipart(MultiPart::alternative_plain_html(text.clone(), html.clone()))?,
+                (Some(html), Some(text)) => builder.multipart(
+                    MultiPart::alternative_plain_html(text.clone(), html.clone()),
+                )?,
                 (Some(html), None) => builder.header(ContentType::TEXT_HTML).body(html.clone())?,
-                (None, Some(text)) => {
-                    builder.header(ContentType::TEXT_PLAIN).body(text.clone())?
-                }
+                (None, Some(text)) => builder.header(ContentType::TEXT_PLAIN).body(text.clone())?,
                 (None, None) => builder
                     .header(ContentType::TEXT_PLAIN)
                     .body(String::new())?,
@@ -174,8 +170,10 @@ impl GmailMailer {
                         LettreAttachment::new_inline(cid.clone())
                             .body(attachment.data.clone(), content_type)
                     }
-                    AttachmentType::Attachment => LettreAttachment::new(attachment.filename.clone())
-                        .body(attachment.data.clone(), content_type),
+                    AttachmentType::Attachment => {
+                        LettreAttachment::new(attachment.filename.clone())
+                            .body(attachment.data.clone(), content_type)
+                    }
                 };
 
                 multipart = multipart.singlepart(lettre_attachment);
