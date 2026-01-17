@@ -158,7 +158,11 @@ impl JmapMailer {
         let account_id = session
             .primary_accounts
             .get("urn:ietf:params:jmap:mail")
-            .or_else(|| session.primary_accounts.get("urn:ietf:params:jmap:submission"))
+            .or_else(|| {
+                session
+                    .primary_accounts
+                    .get("urn:ietf:params:jmap:submission")
+            })
             .or_else(|| session.accounts.keys().next())
             .ok_or_else(|| MailError::Configuration("No JMAP mail account found".into()))?
             .clone();
@@ -573,14 +577,14 @@ impl JmapBuilder {
     /// Build the JmapMailer.
     pub fn build(self) -> JmapMailer {
         // If test_session is provided, pre-populate the session cache
-        let session =
-            self.test_session
-                .map(|(api_url, account_id, drafts_mailbox_id)| JmapSession {
-                    api_url,
-                    account_id,
-                    identity_id: Some("default".to_string()),
-                    drafts_mailbox_id,
-                });
+        let session = self
+            .test_session
+            .map(|(api_url, account_id, drafts_mailbox_id)| JmapSession {
+                api_url,
+                account_id,
+                identity_id: Some("default".to_string()),
+                drafts_mailbox_id,
+            });
 
         JmapMailer {
             session_url: self.session_url,
@@ -588,7 +592,7 @@ impl JmapBuilder {
                 username: String::new(),
                 password: String::new(),
             }),
-            client: self.client.unwrap_or_else(Client::new),
+            client: self.client.unwrap_or_default(),
             session: parking_lot::RwLock::new(session),
         }
     }
@@ -667,13 +671,16 @@ impl Mailer for JmapMailer {
         // Check for errors in method responses
         for (method, result, _) in &jmap_response.method_responses {
             if method == "error" {
-                let error_type = result.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+                let error_type = result
+                    .get("type")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("unknown");
                 let description = result
                     .get("description")
                     .and_then(|d| d.as_str())
                     .unwrap_or("Unknown error");
                 return Err(MailError::ProviderError {
-                    provider: "jmap".into(),
+                    provider: "jmap",
                     message: format!("{}: {}", error_type, description),
                     status: None,
                 });
@@ -683,15 +690,17 @@ impl Mailer for JmapMailer {
             if method == "Email/set" || method == "EmailSubmission/set" {
                 if let Some(not_created) = result.get("notCreated") {
                     if let Some(obj) = not_created.as_object() {
-                        for (_, error) in obj {
-                            let error_type =
-                                error.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+                        if let Some((_, error)) = obj.into_iter().next() {
+                            let error_type = error
+                                .get("type")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("unknown");
                             let description = error
                                 .get("description")
                                 .and_then(|d| d.as_str())
                                 .unwrap_or("Creation failed");
                             return Err(MailError::ProviderError {
-                                provider: "jmap".into(),
+                                provider: "jmap",
                                 message: format!("{}: {}", error_type, description),
                                 status: None,
                             });

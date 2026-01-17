@@ -8,6 +8,8 @@ mod amazon_ses_test;
 mod brevo_test;
 #[path = "adapters/gmail_test.rs"]
 mod gmail_test;
+#[path = "adapters/jmap_test.rs"]
+mod jmap_test;
 #[path = "adapters/local_test.rs"]
 mod local_test;
 #[path = "adapters/logger_test.rs"]
@@ -28,5 +30,3 @@ mod sendgrid_test;
 mod socketlabs_test;
 #[path = "adapters/unsent_test.rs"]
 mod unsent_test;
-#[path = "adapters/jmap_test.rs"]
-mod jmap_test;
