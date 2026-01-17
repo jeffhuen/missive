@@ -40,7 +40,7 @@
 //!
 //! | Variable | Description |
 //! |----------|-------------|
-//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `socketlabs`, `gmail`, `logger`, `logger_full` |
+//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `socketlabs`, `gmail`, `protonbridge`, `jmap`, `logger`, `logger_full` |
 //! | `EMAIL_FROM` | Default sender email |
 //! | `EMAIL_FROM_NAME` | Default sender name |
 //! | `SMTP_HOST` | SMTP server host |
@@ -62,6 +62,14 @@
 //! | `SOCKETLABS_SERVER_ID` | SocketLabs server ID |
 //! | `SOCKETLABS_API_KEY` | SocketLabs API key |
 //! | `GMAIL_ACCESS_TOKEN` | Gmail OAuth2 access token |
+//! | `PROTONBRIDGE_USERNAME` | Proton Bridge SMTP username |
+//! | `PROTONBRIDGE_PASSWORD` | Proton Bridge SMTP password |
+//! | `PROTONBRIDGE_HOST` | Proton Bridge host (default: 127.0.0.1) |
+//! | `PROTONBRIDGE_PORT` | Proton Bridge port (default: 1025) |
+//! | `JMAP_URL` | JMAP server URL |
+//! | `JMAP_USERNAME` | JMAP username (for basic auth) |
+//! | `JMAP_PASSWORD` | JMAP password (for basic auth) |
+//! | `JMAP_BEARER_TOKEN` | JMAP bearer token (for OAuth2) |
 //!
 //! ## Feature Flags
 //!
@@ -76,6 +84,8 @@
 //! - `mailtrap` - Mailtrap API provider (testing/staging)
 //! - `socketlabs` - SocketLabs Injection API provider
 //! - `gmail` - Gmail API provider (OAuth2)
+//! - `protonbridge` - Proton Bridge provider (local SMTP)
+//! - `jmap` - JMAP protocol provider (Stalwart, Fastmail, etc.)
 //! - `local` - LocalMailer for development and testing
 //! - `preview` - Mailbox preview web UI
 //! - `metrics` - Prometheus-style metrics (counters/histograms)
@@ -224,6 +234,17 @@ fn detect_provider() -> Option<&'static str> {
     #[cfg(feature = "gmail")]
     if env::var("GMAIL_ACCESS_TOKEN").is_ok() {
         return Some("gmail");
+    }
+    #[cfg(feature = "protonbridge")]
+    if env::var("PROTONBRIDGE_USERNAME").is_ok() && env::var("PROTONBRIDGE_PASSWORD").is_ok() {
+        return Some("protonbridge");
+    }
+    #[cfg(feature = "jmap")]
+    if env::var("JMAP_URL").is_ok()
+        && (env::var("JMAP_BEARER_TOKEN").is_ok()
+            || (env::var("JMAP_USERNAME").is_ok() && env::var("JMAP_PASSWORD").is_ok()))
+    {
+        return Some("jmap");
     }
     #[cfg(feature = "smtp")]
     if env::var("SMTP_HOST").is_ok() {
@@ -435,6 +456,53 @@ fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
                 .into(),
         )),
 
+        #[cfg(feature = "protonbridge")]
+        "protonbridge" => {
+            let username = env::var("PROTONBRIDGE_USERNAME")
+                .map_err(|_| MailError::Configuration("PROTONBRIDGE_USERNAME not set".into()))?;
+            let password = env::var("PROTONBRIDGE_PASSWORD")
+                .map_err(|_| MailError::Configuration("PROTONBRIDGE_PASSWORD not set".into()))?;
+            let mut builder = providers::ProtonBridgeMailer::new(&username, &password);
+            if let Ok(host) = env::var("PROTONBRIDGE_HOST") {
+                builder = builder.host(&host);
+            }
+            if let Ok(port) = env::var("PROTONBRIDGE_PORT") {
+                if let Ok(port) = port.parse() {
+                    builder = builder.port(port);
+                }
+            }
+            Ok(Arc::new(builder.build()))
+        }
+        #[cfg(not(feature = "protonbridge"))]
+        "protonbridge" => Err(MailError::Configuration(
+            "EMAIL_PROVIDER=protonbridge but 'protonbridge' feature is not enabled. \
+            Add `features = [\"protonbridge\"]` to Cargo.toml"
+                .into(),
+        )),
+
+        #[cfg(feature = "jmap")]
+        "jmap" => {
+            let url = env::var("JMAP_URL")
+                .map_err(|_| MailError::Configuration("JMAP_URL not set".into()))?;
+            let builder = providers::JmapMailer::new(&url);
+            let mailer = if let Ok(token) = env::var("JMAP_BEARER_TOKEN") {
+                builder.bearer_token(&token).build()
+            } else {
+                let username = env::var("JMAP_USERNAME")
+                    .map_err(|_| MailError::Configuration("JMAP_USERNAME not set".into()))?;
+                let password = env::var("JMAP_PASSWORD")
+                    .map_err(|_| MailError::Configuration("JMAP_PASSWORD not set".into()))?;
+                builder.credentials(&username, &password).build()
+            };
+            Ok(Arc::new(mailer))
+        }
+        #[cfg(not(feature = "jmap"))]
+        "jmap" => Err(MailError::Configuration(
+            "EMAIL_PROVIDER=jmap but 'jmap' feature is not enabled. \
+            Add `features = [\"jmap\"]` to Cargo.toml"
+                .into(),
+        )),
+
         #[cfg(feature = "local")]
         "local" => {
             // Use global shared storage so preview UI can access emails
@@ -452,7 +520,7 @@ fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
         "logger_full" => Ok(Arc::new(providers::LoggerMailer::full())),
 
         _ => Err(MailError::Configuration(format!(
-            "Unknown EMAIL_PROVIDER: {}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, socketlabs, gmail, local, logger, logger_full",
+            "Unknown EMAIL_PROVIDER: {}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, socketlabs, gmail, protonbridge, jmap, local, logger, logger_full",
             provider
         ))),
     }
@@ -625,6 +693,34 @@ pub fn is_configured() -> bool {
             tracing::warn!(
                 "EMAIL_PROVIDER=gmail but 'gmail' feature is not enabled. \
                 Add `features = [\"gmail\"]` to Cargo.toml"
+            );
+            false
+        }
+
+        #[cfg(feature = "protonbridge")]
+        "protonbridge" => {
+            env::var("PROTONBRIDGE_USERNAME").is_ok() && env::var("PROTONBRIDGE_PASSWORD").is_ok()
+        }
+        #[cfg(not(feature = "protonbridge"))]
+        "protonbridge" => {
+            tracing::warn!(
+                "EMAIL_PROVIDER=protonbridge but 'protonbridge' feature is not enabled. \
+                Add `features = [\"protonbridge\"]` to Cargo.toml"
+            );
+            false
+        }
+
+        #[cfg(feature = "jmap")]
+        "jmap" => {
+            env::var("JMAP_URL").is_ok()
+                && (env::var("JMAP_BEARER_TOKEN").is_ok()
+                    || (env::var("JMAP_USERNAME").is_ok() && env::var("JMAP_PASSWORD").is_ok()))
+        }
+        #[cfg(not(feature = "jmap"))]
+        "jmap" => {
+            tracing::warn!(
+                "EMAIL_PROVIDER=jmap but 'jmap' feature is not enabled. \
+                Add `features = [\"jmap\"]` to Cargo.toml"
             );
             false
         }

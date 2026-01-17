@@ -28,6 +28,8 @@ mailtrap = ["_http"]
 mailjet = ["_http"]
 socketlabs = ["_http"]
 gmail = ["smtp", "_http"]  # Uses lettre for RFC 2822 + HTTP for Gmail API
+protonbridge = ["smtp"]  # Thin wrapper around SMTP for local Proton Bridge
+jmap = ["_http"]  # JMAP protocol for Stalwart, Fastmail, etc.
 
 # Development & Testing
 local = ["dep:regex"]  # LocalMailer + test assertions (regex for matching)
@@ -42,7 +44,7 @@ metrics = ["dep:metrics"]  # Prometheus-style counters/histograms
 templates = ["dep:askama"]
 
 # Bundles
-full = ["smtp", "resend", "unsent", "postmark", "sendgrid", "brevo", "mailgun", "amazon_ses", "mailtrap", "mailjet", "socketlabs", "gmail", "local", "templates", "preview-axum"]
+full = ["smtp", "resend", "unsent", "postmark", "sendgrid", "brevo", "mailgun", "amazon_ses", "mailtrap", "mailjet", "socketlabs", "gmail", "protonbridge", "jmap", "local", "templates", "preview-axum"]
 dev = ["local", "preview"]
 
 [dependencies]

@@ -8,7 +8,7 @@ Compose, deliver, test, and preview emails in Rust. Plug and play.
   <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.webp">
 </picture>
 
-Missive comes with adapters for popular transactional email providers including Amazon SES, Gmail, Mailgun, Resend, SendGrid, Postmark, SocketLabs, SMTP, and more. For local development, it includes an in-memory mailbox with a web-based preview UI, plus a logger provider for debugging. No initialization code required for most setups.
+Missive comes with adapters for popular transactional email providers including Amazon SES, Gmail, JMAP, Mailgun, Resend, SendGrid, Postmark, Proton Bridge, SocketLabs, SMTP, and more. For local development, it includes an in-memory mailbox with a web-based preview UI, plus a logger provider for debugging. No initialization code required for most setups.
 
 ## Requirements
 
@@ -68,6 +68,8 @@ Missive supports popular transactional email services out of the box:
 | Mailtrap | `mailtrap` | `MAILTRAP_API_KEY` |
 | SocketLabs | `socketlabs` | `SOCKETLABS_SERVER_ID`, `SOCKETLABS_API_KEY` |
 | Gmail | `gmail` | `GMAIL_ACCESS_TOKEN` |
+| JMAP | `jmap` | `JMAP_URL`, `JMAP_USERNAME`, `JMAP_PASSWORD` |
+| Proton Bridge | `protonbridge` | `PROTONBRIDGE_USERNAME`, `PROTONBRIDGE_PASSWORD` |
 | Unsent | `unsent` | `UNSENT_API_KEY` |
 | Local | `local` | (none) |
 | Logger | (always available) | (none) |
@@ -187,6 +189,8 @@ missive = { version = "0.5.0", features = ["full"] }
 | `mailtrap` | Mailtrap API |
 | `socketlabs` | SocketLabs Injection API |
 | `gmail` | Gmail API (OAuth2) |
+| `jmap` | JMAP (RFC 8621) - works with Stalwart, Fastmail, Cyrus, etc. |
+| `protonbridge` | Proton Mail via local Bridge |
 | `unsent` | Unsent API |
 | `local` | LocalMailer - in-memory storage + test assertions |
 | `preview` | Standalone preview server (tiny_http) |

@@ -28,3 +28,5 @@ mod sendgrid_test;
 mod socketlabs_test;
 #[path = "adapters/unsent_test.rs"]
 mod unsent_test;
+#[path = "adapters/jmap_test.rs"]
+mod jmap_test;

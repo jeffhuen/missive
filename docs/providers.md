@@ -572,6 +572,105 @@ if let Some(response) = result.provider_response {
 
 ---
 
+## JMAP
+
+[JMAP](https://jmap.io/) (JSON Meta Application Protocol) - Modern, stateless alternative to IMAP/SMTP.
+
+**Feature:** `jmap`
+
+Works with any JMAP-compliant server including [Stalwart](https://stalw.art/), [Fastmail](https://www.fastmail.com/), and [Cyrus](https://www.cyrusimap.org/).
+
+**Environment Variables:**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JMAP_URL` | Yes | JMAP session URL (e.g., `https://jmap.example.com/session`) |
+| `JMAP_USERNAME` | Conditional | Username for basic auth |
+| `JMAP_PASSWORD` | Conditional | Password for basic auth |
+| `JMAP_BEARER_TOKEN` | Conditional | Bearer token for OAuth2 (alternative to username/password) |
+
+**Programmatic Configuration:**
+
+```rust
+use missive::providers::JmapMailer;
+
+// Basic authentication
+let mailer = JmapMailer::new("https://jmap.example.com")
+    .credentials("username", "password")
+    .build();
+
+// Bearer token (OAuth2)
+let mailer = JmapMailer::new("https://jmap.example.com")
+    .bearer_token("your-oauth-token")
+    .build();
+```
+
+**How It Works:**
+
+JMAP email submission follows RFC 8621:
+
+1. **Session discovery** - Fetches account info from `/.well-known/jmap`
+2. **Identity lookup** - Gets sender identity via `Identity/get`
+3. **Mailbox lookup** - Finds drafts mailbox via `Mailbox/get`
+4. **Create email** - Creates email in drafts via `Email/set`
+5. **Submit** - Sends via `EmailSubmission/set` with `onSuccessDestroyEmail`
+
+Emails must belong to at least one mailbox per the JMAP spec. The provider uses the drafts mailbox and automatically deletes the draft after successful submission.
+
+**Local Testing:**
+
+See [JMAP Testing Guide](./jmap-testing.md) for setting up a local Stalwart server with Docker.
+
+---
+
+## Proton Bridge
+
+[Proton Mail](https://proton.me/mail) via the local [Proton Bridge](https://proton.me/mail/bridge) application.
+
+**Feature:** `protonbridge`
+
+**Prerequisites:**
+
+1. Install and configure [Proton Mail Bridge](https://proton.me/mail/bridge)
+2. Sign in to your Proton account in the Bridge app
+3. Note the bridge password (not your Proton password)
+
+**Environment Variables:**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PROTONBRIDGE_USERNAME` | Yes | - | Your Proton email address |
+| `PROTONBRIDGE_PASSWORD` | Yes | - | Bridge-generated password (from Bridge app) |
+| `PROTONBRIDGE_HOST` | No | `127.0.0.1` | Bridge hostname |
+| `PROTONBRIDGE_PORT` | No | `1025` | Bridge SMTP port |
+
+**Programmatic Configuration:**
+
+```rust
+use missive::providers::ProtonBridgeMailer;
+
+// Default: localhost:1025
+let mailer = ProtonBridgeMailer::new("user@proton.me", "bridge-password")
+    .build();
+
+// Custom host/port
+let mailer = ProtonBridgeMailer::new("user@proton.me", "bridge-password")
+    .host("192.168.1.100")
+    .port(1026)
+    .build();
+```
+
+**Technical Details:**
+
+Proton Bridge is a thin wrapper around SMTP configured for the local Bridge:
+- Connects to `127.0.0.1:1025` by default
+- Uses PLAIN authentication (Bridge handles encryption to Proton servers)
+- No TLS required (local connection only)
+
+The Bridge application must be running for email delivery to work.
+
+---
+
 ## Development Providers
 
 These providers don't send real emails - they're for development, testing, and debugging.

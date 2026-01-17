@@ -18,6 +18,8 @@
 //! | [`MailjetMailer`] | `mailjet` | Mailjet API |
 //! | [`SocketLabsMailer`] | `socketlabs` | SocketLabs Injection API |
 //! | [`GmailMailer`] | `gmail` | Gmail API (OAuth2) |
+//! | [`ProtonBridgeMailer`] | `protonbridge` | [Proton Bridge](https://proton.me/mail/bridge) (local SMTP) |
+//! | [`JmapMailer`] | `jmap` | JMAP protocol (Stalwart, Fastmail, etc.) |
 //! | [`LocalMailer`] | `local` | In-memory storage for dev/testing |
 //! | [`LoggerMailer`] | (none) | Logs emails without storing |
 
@@ -80,6 +82,16 @@ pub use socketlabs::SocketLabsMailer;
 mod gmail;
 #[cfg(feature = "gmail")]
 pub use gmail::GmailMailer;
+
+#[cfg(feature = "protonbridge")]
+mod protonbridge;
+#[cfg(feature = "protonbridge")]
+pub use protonbridge::ProtonBridgeMailer;
+
+#[cfg(feature = "jmap")]
+mod jmap;
+#[cfg(feature = "jmap")]
+pub use jmap::JmapMailer;
 
 #[cfg(feature = "local")]
 mod local;

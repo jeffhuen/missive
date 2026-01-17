@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-01-17
+
+### Added
+
+- **JMAP** - JMAP (JSON Meta Application Protocol) provider (`jmap` feature)
+  - Minimal spec-compliant implementation using reqwest+serde (no external JMAP crate)
+  - Works with any JMAP server: Stalwart, Fastmail, Cyrus, etc.
+  - Basic auth and Bearer token (OAuth2) authentication
+  - Full submission flow: session discovery, identity/mailbox lookup, Email/set, EmailSubmission/set
+  - Emails placed in drafts mailbox per RFC 8621, auto-deleted after successful submission
+  - See `docs/jmap-testing.md` for local testing with Docker
+
+- **Proton Bridge** - Proton Mail via local bridge (`protonbridge` feature)
+  - Thin wrapper around SMTP for Proton Bridge integration
+  - Pre-configured for localhost:1025, PLAIN auth, no TLS
+  - Requires [Proton Mail Bridge](https://proton.me/mail/bridge) running locally
+
+### Documentation
+
+- Added JMAP testing guide with Docker-based Stalwart setup (`docs/jmap-testing.md`)
 
 ## [0.5.0] - 2026-01-13
 
