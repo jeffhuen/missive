@@ -68,8 +68,8 @@ Missive supports popular transactional email services out of the box:
 | Mailtrap | `mailtrap` | `MAILTRAP_API_KEY` |
 | SocketLabs | `socketlabs` | `SOCKETLABS_SERVER_ID`, `SOCKETLABS_API_KEY` |
 | Gmail | `gmail` | `GMAIL_ACCESS_TOKEN` |
-| JMAP | `jmap` | `JMAP_URL`, `JMAP_USERNAME`, `JMAP_PASSWORD` |
-| Proton Bridge | `protonbridge` | `PROTONBRIDGE_USERNAME`, `PROTONBRIDGE_PASSWORD` |
+| JMAP | `jmap` | `JMAP_URL`<br>`JMAP_USERNAME`<br>`JMAP_PASSWORD` |
+| Proton Bridge | `protonbridge` | `PROTONBRIDGE_USERNAME`<br>`PROTONBRIDGE_PASSWORD` |
 | Unsent | `unsent` | `UNSENT_API_KEY` |
 | Local | `local` | (none) |
 | Logger | (always available) | (none) |
