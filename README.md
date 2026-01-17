@@ -46,7 +46,7 @@ Add missive to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-missive = { version = "0.5.0", features = ["resend"] }
+missive = { version = "0.6.0", features = ["resend"] }
 ```
 
 Enable the feature for your email provider. See [Feature Flags](#feature-flags) for all options.
@@ -90,7 +90,7 @@ If you only use one provider, enable just that feature:
 
 ```toml
 [dependencies]
-missive = { version = "0.5.0", features = ["resend"] }
+missive = { version = "0.6.0", features = ["resend"] }
 ```
 
 ```bash
@@ -106,7 +106,7 @@ For runtime flexibility (e.g., different providers per environment), enable mult
 
 ```toml
 [dependencies]
-missive = { version = "0.5.0", features = ["smtp", "resend", "local"] }
+missive = { version = "0.6.0", features = ["smtp", "resend", "local"] }
 ```
 
 Then configure per environment in `.env`:
@@ -151,7 +151,7 @@ When `EMAIL_PROVIDER` is not set, Missive automatically detects which provider t
 This means zero-config for simple setups:
 
 ```toml
-missive = { version = "0.5.0", features = ["resend"] }
+missive = { version = "0.6.0", features = ["resend"] }
 ```
 
 ```bash
@@ -168,10 +168,10 @@ Use `EMAIL_PROVIDER` explicitly when:
 
 ```toml
 # Development setup (local + preview UI)
-missive = { version = "0.5.0", features = ["dev"] }
+missive = { version = "0.6.0", features = ["dev"] }
 
 # Everything (all providers + templates)
-missive = { version = "0.5.0", features = ["full"] }
+missive = { version = "0.6.0", features = ["full"] }
 ```
 
 ### Available Features
@@ -589,7 +589,7 @@ async fn send_email(job: SendEmailJob, _ctx: JobContext) -> Result<(), Error> {
 Enable Prometheus-style metrics with `features = ["metrics"]`:
 
 ```toml
-missive = { version = "0.5.0", features = ["resend", "metrics"] }
+missive = { version = "0.6.0", features = ["resend", "metrics"] }
 ```
 
 Missive emits these metrics:
