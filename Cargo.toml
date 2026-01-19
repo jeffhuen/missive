@@ -1,6 +1,6 @@
 [package]
 name = "missive"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 description = "Compose, deliver, preview, and test emails in Rust - pluggable providers with zero configuration code"
 license = "MIT"

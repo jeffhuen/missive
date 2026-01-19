@@ -157,6 +157,17 @@ pub trait Mailer: Send + Sync {
 /// Extension trait for optional mailer operations.
 pub trait MailerExt: Mailer {
     /// Validate an email before sending.
+    ///
+    /// # Deprecated
+    ///
+    /// This method does not account for the `EMAIL_FROM` environment variable fallback,
+    /// so it incorrectly rejects emails that rely on the default sender. Use
+    /// [`Email::is_valid()`] for a quick check, or rely on the validation in
+    /// [`deliver()`]/[`deliver_with()`] which handles environment defaults correctly.
+    #[deprecated(
+        since = "0.6.2",
+        note = "does not handle EMAIL_FROM fallback; use Email::is_valid() or rely on deliver() validation"
+    )]
     fn validate(&self, email: &Email) -> Result<(), MailError> {
         if email.from.is_none() {
             return Err(MailError::MissingField("from"));
