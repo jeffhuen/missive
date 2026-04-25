@@ -66,6 +66,7 @@ Missive supports popular transactional email services out of the box:
 | Mailjet | `mailjet` | `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` |
 | Amazon SES | `amazon_ses` | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
 | Mailtrap | `mailtrap` | `MAILTRAP_API_KEY` |
+| Mailjet | `mailjet` | `MAILJET_API_KEY` |
 | SocketLabs | `socketlabs` | `SOCKETLABS_SERVER_ID`, `SOCKETLABS_API_KEY` |
 | Gmail | `gmail` | `GMAIL_ACCESS_TOKEN` |
 | JMAP | `jmap` | `JMAP_URL`<br>`JMAP_USERNAME`<br>`JMAP_PASSWORD` |
@@ -187,6 +188,7 @@ missive = { version = "0.6.0", features = ["full"] }
 | `mailjet` | Mailjet API |
 | `amazon_ses` | Amazon SES API |
 | `mailtrap` | Mailtrap API |
+| `mailjet` | Mailjet API |
 | `socketlabs` | SocketLabs Injection API |
 | `gmail` | Gmail API (OAuth2) |
 | `jmap` | JMAP (RFC 8621) - works with Stalwart, Fastmail, Cyrus, etc. |
