@@ -40,7 +40,7 @@
 //!
 //! | Variable | Description |
 //! |----------|-------------|
-//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `socketlabs`, `gmail`, `protonbridge`, `jmap`, `logger`, `logger_full` |
+//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `mailjet`, `socketlabs`, `gmail`, `protonbridge`, `jmap`, `logger`, `logger_full` |
 //! | `EMAIL_FROM` | Default sender email |
 //! | `EMAIL_FROM_NAME` | Default sender name |
 //! | `SMTP_HOST` | SMTP server host |
@@ -59,6 +59,8 @@
 //! | `AWS_SECRET_ACCESS_KEY` | AWS secret key |
 //! | `MAILTRAP_API_KEY` | Mailtrap API key |
 //! | `MAILTRAP_SANDBOX_INBOX_ID` | Mailtrap sandbox inbox ID (optional) |
+//! | `MAILJET_API_KEY` | Mailjet API key |
+//! | `MAILJET_SECRET_KEY` | Mailjet secret key |
 //! | `SOCKETLABS_SERVER_ID` | SocketLabs server ID |
 //! | `SOCKETLABS_API_KEY` | SocketLabs API key |
 //! | `GMAIL_ACCESS_TOKEN` | Gmail OAuth2 access token |
@@ -82,6 +84,7 @@
 //! - `mailgun` - Mailgun API provider
 //! - `amazon_ses` - Amazon SES API provider
 //! - `mailtrap` - Mailtrap API provider (testing/staging)
+//! - `mailjet` - Mailjet API provider
 //! - `socketlabs` - SocketLabs Injection API provider
 //! - `gmail` - Gmail API provider (OAuth2)
 //! - `protonbridge` - Proton Bridge provider (local SMTP)
@@ -226,6 +229,10 @@ fn detect_provider() -> Option<&'static str> {
     #[cfg(feature = "mailtrap")]
     if env::var("MAILTRAP_API_KEY").is_ok() {
         return Some("mailtrap");
+    }
+    #[cfg(feature = "mailjet")]
+    if env::var("MAILJET_API_KEY").is_ok() {
+        return Some("mailjet");
     }
     #[cfg(feature = "socketlabs")]
     if env::var("SOCKETLABS_API_KEY").is_ok() && env::var("SOCKETLABS_SERVER_ID").is_ok() {
@@ -428,6 +435,22 @@ fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
                 .into(),
         )),
 
+        #[cfg(feature = "mailjet")]
+        "mailjet" => {
+            let api_key = env::var("MAILJET_API_KEY")
+                .map_err(|_| MailError::Configuration("MAILJET_API_KEY not set".into()))?;
+            let secret_key = env::var("MAILJET_SECRET_KEY")
+                .map_err(|_| MailError::Configuration("MAILJET_SECRET_KEY not set".into()))?;
+            let mailer = providers::MailjetMailer::new(&api_key, &secret_key);
+            Ok(Arc::new(mailer))
+        }
+        #[cfg(not(feature = "mailjet"))]
+        "mailjet" => Err(MailError::Configuration(
+            "EMAIL_PROVIDER=mailjet but 'mailjet' feature is not enabled. \
+            Add `features = [\"mailjet\"]` to Cargo.toml"
+                .into(),
+        )),
+
         #[cfg(feature = "socketlabs")]
         "socketlabs" => {
             let server_id = env::var("SOCKETLABS_SERVER_ID")
@@ -520,7 +543,7 @@ fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
         "logger_full" => Ok(Arc::new(providers::LoggerMailer::full())),
 
         _ => Err(MailError::Configuration(format!(
-            "Unknown EMAIL_PROVIDER: {}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, socketlabs, gmail, protonbridge, jmap, local, logger, logger_full",
+            "Unknown EMAIL_PROVIDER: {}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, mailjet, socketlabs, gmail, protonbridge, jmap, local, logger, logger_full",
             provider
         ))),
     }
