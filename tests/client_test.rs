@@ -16,10 +16,14 @@ async fn email_client_delivers_with_default_sender() {
 
     let stored = mailer.storage().get(&result.message_id).unwrap();
     assert_eq!(
-        stored.email.from.as_ref().map(|addr| addr.email.as_str()),
+        stored
+            .email
+            .from_address()
+            .as_ref()
+            .map(|addr| addr.email()),
         Some("noreply@example.com")
     );
-    assert_eq!(stored.email.to[0].email, "user@example.com");
+    assert_eq!(stored.email.to_addresses()[0].email(), "user@example.com");
 }
 
 #[tokio::test]

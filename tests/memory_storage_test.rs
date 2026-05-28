@@ -52,7 +52,7 @@ fn get_retrieves_email_by_id() {
     storage.push(Email::new().subject("Third"));
 
     let retrieved = storage.get(&id).unwrap();
-    assert_eq!(retrieved.email.subject, "Hello, Avengers!");
+    assert_eq!(retrieved.email.subject_line(), "Hello, Avengers!");
 }
 
 #[test]
@@ -76,11 +76,11 @@ fn pop_removes_most_recent_email() {
     assert_eq!(storage.count(), 2);
 
     let email = storage.pop().unwrap();
-    assert_eq!(email.email.subject, "Test 2");
+    assert_eq!(email.email.subject_line(), "Test 2");
     assert_eq!(storage.count(), 1);
 
     let email = storage.pop().unwrap();
-    assert_eq!(email.email.subject, "Test 1");
+    assert_eq!(email.email.subject_line(), "Test 1");
     assert_eq!(storage.count(), 0);
 }
 
@@ -104,9 +104,9 @@ fn all_returns_emails_newest_first() {
 
     let all = storage.all();
     assert_eq!(all.len(), 3);
-    assert_eq!(all[0].email.subject, "Third");
-    assert_eq!(all[1].email.subject, "Second");
-    assert_eq!(all[2].email.subject, "First");
+    assert_eq!(all[0].email.subject_line(), "Third");
+    assert_eq!(all[1].email.subject_line(), "Second");
+    assert_eq!(all[2].email.subject_line(), "First");
 }
 
 // ============================================================================
@@ -163,9 +163,9 @@ fn flush_returns_all_and_clears() {
 
     let flushed = storage.flush();
     assert_eq!(flushed.len(), 3);
-    assert_eq!(flushed[0].email.subject, "Third"); // Newest first
-    assert_eq!(flushed[1].email.subject, "Second");
-    assert_eq!(flushed[2].email.subject, "First");
+    assert_eq!(flushed[0].email.subject_line(), "Third"); // Newest first
+    assert_eq!(flushed[1].email.subject_line(), "Second");
+    assert_eq!(flushed[2].email.subject_line(), "First");
 
     // Storage should be empty after flush
     assert_eq!(storage.count(), 0);

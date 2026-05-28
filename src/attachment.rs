@@ -44,22 +44,22 @@ pub enum AttachmentType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attachment {
     /// Filename for the attachment
-    pub filename: String,
+    pub(crate) filename: String,
     /// MIME content type (e.g., "application/pdf", "image/png")
-    pub content_type: String,
+    pub(crate) content_type: String,
     /// Raw attachment data (empty if using path-based lazy loading)
-    pub data: Vec<u8>,
+    pub(crate) data: Vec<u8>,
     /// File path for lazy loading.
     /// If set, data will be read from this path when needed.
     #[serde(default)]
-    pub path: Option<String>,
+    pub(crate) path: Option<String>,
     /// Whether this is an inline or regular attachment
-    pub disposition: AttachmentType,
+    pub(crate) disposition: AttachmentType,
     /// Content-ID for inline attachments (used as cid: reference)
-    pub content_id: Option<String>,
+    pub(crate) content_id: Option<String>,
     /// Custom headers for the attachment
     #[serde(default)]
-    pub headers: Vec<(String, String)>,
+    pub(crate) headers: Vec<(String, String)>,
 }
 
 impl Attachment {
@@ -187,6 +187,41 @@ impl Attachment {
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.headers.push((name.into(), value.into()));
         self
+    }
+
+    /// Borrow the attachment filename.
+    pub fn filename(&self) -> &str {
+        &self.filename
+    }
+
+    /// Borrow the attachment MIME type.
+    pub fn mime_type(&self) -> &str {
+        &self.content_type
+    }
+
+    /// Borrow eagerly loaded attachment bytes.
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Borrow the lazy-loading path, if this is a path-based attachment.
+    pub fn path(&self) -> Option<&str> {
+        self.path.as_deref()
+    }
+
+    /// Return the attachment disposition.
+    pub fn disposition(&self) -> AttachmentType {
+        self.disposition
+    }
+
+    /// Borrow the inline Content-ID, if set.
+    pub fn inline_content_id(&self) -> Option<&str> {
+        self.content_id.as_deref()
+    }
+
+    /// Borrow custom attachment headers.
+    pub fn headers(&self) -> &[(String, String)] {
+        &self.headers
     }
 
     /// Get the attachment data, loading from path if necessary.

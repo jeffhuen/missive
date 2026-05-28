@@ -14,20 +14,20 @@ use std::fmt;
 ///
 /// // From email string
 /// let addr: Address = "user@example.com".into();
-/// assert_eq!(addr.email, "user@example.com");
-/// assert_eq!(addr.name, None);
+/// assert_eq!(addr.email(), "user@example.com");
+/// assert_eq!(addr.display_name(), None);
 ///
 /// // From tuple (name, email)
 /// let addr: Address = ("Alice", "alice@example.com").into();
-/// assert_eq!(addr.email, "alice@example.com");
-/// assert_eq!(addr.name, Some("Alice".to_string()));
+/// assert_eq!(addr.email(), "alice@example.com");
+/// assert_eq!(addr.display_name(), Some("Alice"));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Address {
     /// Optional display name (e.g., "Alice Smith")
-    pub name: Option<String>,
+    pub(crate) name: Option<String>,
     /// Email address (e.g., "alice@example.com")
-    pub email: String,
+    pub(crate) email: String,
 }
 
 impl Address {
@@ -86,6 +86,16 @@ impl Address {
         self
     }
 
+    /// Borrow the email address.
+    pub fn email(&self) -> &str {
+        &self.email
+    }
+
+    /// Borrow the optional display name.
+    pub fn display_name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
     /// Parse and validate an email address.
     ///
     /// Uses RFC 5321/5322 compliant validation. Returns an error if the
@@ -98,7 +108,7 @@ impl Address {
     ///
     /// // Valid address
     /// let addr = Address::parse("user@example.com").unwrap();
-    /// assert_eq!(addr.email, "user@example.com");
+    /// assert_eq!(addr.email(), "user@example.com");
     ///
     /// // Invalid address
     /// assert!(Address::parse("not-an-email").is_err());
@@ -127,8 +137,8 @@ impl Address {
     /// use missive::Address;
     ///
     /// let addr = Address::parse_with_name("Alice", "alice@example.com").unwrap();
-    /// assert_eq!(addr.email, "alice@example.com");
-    /// assert_eq!(addr.name, Some("Alice".to_string()));
+    /// assert_eq!(addr.email(), "alice@example.com");
+    /// assert_eq!(addr.display_name(), Some("Alice"));
     ///
     /// // Invalid email
     /// assert!(Address::parse_with_name("Alice", "not-valid").is_err());

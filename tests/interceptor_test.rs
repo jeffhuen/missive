@@ -24,7 +24,7 @@ async fn test_interceptor_modifies_email() {
     let emails = local.emails();
     assert_eq!(emails.len(), 1);
     assert_eq!(
-        emails[0].email.headers.get("X-Modified"),
+        emails[0].email.headers().get("X-Modified"),
         Some(&"true".to_string())
     );
 }
@@ -51,9 +51,12 @@ async fn test_interceptor_redirects_recipients() {
 
     let emails = local.emails();
     assert_eq!(emails.len(), 1);
-    assert_eq!(emails[0].email.to.len(), 1);
-    assert_eq!(emails[0].email.to[0].email, "test@dev.example.com");
-    assert!(emails[0].email.cc.is_empty());
+    assert_eq!(emails[0].email.to_addresses().len(), 1);
+    assert_eq!(
+        emails[0].email.to_addresses()[0].email(),
+        "test@dev.example.com"
+    );
+    assert!(emails[0].email.cc_addresses().is_empty());
 }
 
 /// Test that an interceptor can block an email by returning an error.
@@ -61,7 +64,11 @@ async fn test_interceptor_redirects_recipients() {
 async fn test_interceptor_blocks_email() {
     let local = LocalMailer::new();
     let mailer = local.clone().with_interceptor(|email: Email| {
-        if email.to.iter().any(|a| a.email.ends_with("@blocked.com")) {
+        if email
+            .to_addresses()
+            .iter()
+            .any(|a| a.email().ends_with("@blocked.com"))
+        {
             return Err(MailError::SendError("Blocked domain".into()));
         }
         Ok(email)
@@ -103,15 +110,15 @@ async fn test_interceptor_chaining() {
     assert_eq!(emails.len(), 1);
     // All interceptors should have applied their headers
     assert_eq!(
-        emails[0].email.headers.get("X-First"),
+        emails[0].email.headers().get("X-First"),
         Some(&"1".to_string())
     );
     assert_eq!(
-        emails[0].email.headers.get("X-Second"),
+        emails[0].email.headers().get("X-Second"),
         Some(&"2".to_string())
     );
     assert_eq!(
-        emails[0].email.headers.get("X-Third"),
+        emails[0].email.headers().get("X-Third"),
         Some(&"3".to_string())
     );
 }
@@ -146,7 +153,7 @@ async fn test_struct_interceptor() {
 
     let emails = local.emails();
     assert_eq!(
-        emails[0].email.headers.get("X-Custom"),
+        emails[0].email.headers().get("X-Custom"),
         Some(&"custom-value".to_string())
     );
 }
@@ -175,7 +182,7 @@ async fn test_interceptor_with_deliver_many() {
     assert_eq!(stored.len(), 3);
     for email in stored {
         assert_eq!(
-            email.email.headers.get("X-Batch"),
+            email.email.headers().get("X-Batch"),
             Some(&"true".to_string())
         );
     }
@@ -226,7 +233,7 @@ async fn test_validate_config_delegates() {
 async fn test_deliver_many_fails_on_interceptor_error() {
     let local = LocalMailer::new();
     let mailer = local.clone().with_interceptor(|email: Email| {
-        if email.subject.contains("bad") {
+        if email.subject_line().contains("bad") {
             return Err(MailError::SendError("Blocked bad email".into()));
         }
         Ok(email)

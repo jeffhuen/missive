@@ -36,31 +36,31 @@ use crate::error::MailError;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Email {
     /// Sender address
-    pub from: Option<Address>,
+    pub(crate) from: Option<Address>,
     /// Primary recipients
-    pub to: Vec<Address>,
+    pub(crate) to: Vec<Address>,
     /// Carbon copy recipients
-    pub cc: Vec<Address>,
+    pub(crate) cc: Vec<Address>,
     /// Blind carbon copy recipients
-    pub bcc: Vec<Address>,
+    pub(crate) bcc: Vec<Address>,
     /// Reply-to addresses (supports multiple)
-    pub reply_to: Vec<Address>,
+    pub(crate) reply_to: Vec<Address>,
     /// Email subject line
-    pub subject: String,
+    pub(crate) subject: String,
     /// Plain text body
-    pub text_body: Option<String>,
+    pub(crate) text_body: Option<String>,
     /// HTML body
-    pub html_body: Option<String>,
+    pub(crate) html_body: Option<String>,
     /// File attachments
-    pub attachments: Vec<Attachment>,
+    pub(crate) attachments: Vec<Attachment>,
     /// Custom email headers
-    pub headers: HashMap<String, String>,
+    pub(crate) headers: HashMap<String, String>,
     /// Template variables for use with templating systems.
-    pub assigns: HashMap<String, serde_json::Value>,
+    pub(crate) assigns: HashMap<String, serde_json::Value>,
     /// Private storage for libraries/frameworks (e.g., template paths, metadata).
-    pub private: HashMap<String, serde_json::Value>,
+    pub(crate) private: HashMap<String, serde_json::Value>,
     /// Provider-specific options (e.g., tracking, tags, templates)
-    pub provider_options: HashMap<String, serde_json::Value>,
+    pub(crate) provider_options: HashMap<String, serde_json::Value>,
 }
 
 /// An email that has passed Missive's shared delivery validation.
@@ -282,6 +282,71 @@ impl Email {
     ) -> Self {
         self.private.insert(key.into(), value.into());
         self
+    }
+
+    /// Borrow the sender address.
+    pub fn from_address(&self) -> Option<&Address> {
+        self.from.as_ref()
+    }
+
+    /// Borrow primary recipients.
+    pub fn to_addresses(&self) -> &[Address] {
+        &self.to
+    }
+
+    /// Borrow CC recipients.
+    pub fn cc_addresses(&self) -> &[Address] {
+        &self.cc
+    }
+
+    /// Borrow BCC recipients.
+    pub fn bcc_addresses(&self) -> &[Address] {
+        &self.bcc
+    }
+
+    /// Borrow Reply-To addresses.
+    pub fn reply_to_addresses(&self) -> &[Address] {
+        &self.reply_to
+    }
+
+    /// Borrow the subject line.
+    pub fn subject_line(&self) -> &str {
+        &self.subject
+    }
+
+    /// Borrow the plain-text body.
+    pub fn text_body_content(&self) -> Option<&str> {
+        self.text_body.as_deref()
+    }
+
+    /// Borrow the HTML body.
+    pub fn html_body_content(&self) -> Option<&str> {
+        self.html_body.as_deref()
+    }
+
+    /// Borrow attachments.
+    pub fn attachments(&self) -> &[Attachment] {
+        &self.attachments
+    }
+
+    /// Borrow custom email headers.
+    pub fn headers(&self) -> &HashMap<String, String> {
+        &self.headers
+    }
+
+    /// Borrow template assigns.
+    pub fn assigns(&self) -> &HashMap<String, serde_json::Value> {
+        &self.assigns
+    }
+
+    /// Borrow private framework metadata.
+    pub fn private(&self) -> &HashMap<String, serde_json::Value> {
+        &self.private
+    }
+
+    /// Borrow raw provider-specific options.
+    pub fn provider_options(&self) -> &HashMap<String, serde_json::Value> {
+        &self.provider_options
     }
 
     /// Check if the email has all required fields for sending.

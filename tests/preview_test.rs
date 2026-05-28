@@ -215,7 +215,7 @@ async fn test_view_email_by_id() {
     // Find the email with attachments (Peace, love, not war)
     let target_email = emails
         .iter()
-        .find(|e| e.email.subject == "Peace, love, not war")
+        .find(|e| e.email.subject_line() == "Peace, love, not war")
         .unwrap();
     let target_id = &target_email.id;
 
@@ -267,7 +267,7 @@ async fn test_email_html_body() {
     let emails = storage.all();
     let target_email = emails
         .iter()
-        .find(|e| e.email.subject == "Peace, love, not war")
+        .find(|e| e.email.subject_line() == "Peace, love, not war")
         .unwrap();
     let target_id = &target_email.id;
 
@@ -310,7 +310,7 @@ async fn test_download_attachment() {
     // Find email with attachments
     let target_email = emails
         .iter()
-        .find(|e| !e.email.attachments.is_empty())
+        .find(|e| !e.email.attachments().is_empty())
         .unwrap();
     let target_id = &target_email.id;
 
@@ -354,7 +354,7 @@ async fn test_download_attachment_not_found() {
     let emails = storage.all();
     let target_email = emails
         .iter()
-        .find(|e| !e.email.attachments.is_empty())
+        .find(|e| !e.email.attachments().is_empty())
         .unwrap();
     let target_id = &target_email.id;
 

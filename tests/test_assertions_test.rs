@@ -326,7 +326,7 @@ async fn assert_email_count_fails_for_wrong_count() {
 async fn assert_email_matches_passes_for_valid_predicate() {
     let mailer = LocalMailer::new();
     send_email(&mailer).await;
-    assert_email_matches(&mailer, |email| email.to.len() == 2);
+    assert_email_matches(&mailer, |email| email.to_addresses().len() == 2);
 }
 
 #[tokio::test]
@@ -334,7 +334,7 @@ async fn assert_email_matches_passes_for_valid_predicate() {
 async fn assert_email_matches_fails_for_no_match() {
     let mailer = LocalMailer::new();
     send_email(&mailer).await;
-    assert_email_matches(&mailer, |email| email.to.is_empty());
+    assert_email_matches(&mailer, |email| email.to_addresses().is_empty());
 }
 
 // ============================================================================
@@ -345,7 +345,7 @@ async fn assert_email_matches_fails_for_no_match() {
 async fn refute_email_matches_passes_for_no_match() {
     let mailer = LocalMailer::new();
     send_email(&mailer).await;
-    refute_email_matches(&mailer, |email| email.to.is_empty());
+    refute_email_matches(&mailer, |email| email.to_addresses().is_empty());
 }
 
 #[tokio::test]
@@ -353,7 +353,7 @@ async fn refute_email_matches_passes_for_no_match() {
 async fn refute_email_matches_fails_for_matching() {
     let mailer = LocalMailer::new();
     send_email(&mailer).await;
-    refute_email_matches(&mailer, |email| email.to.len() == 2);
+    refute_email_matches(&mailer, |email| email.to_addresses().len() == 2);
 }
 
 // ============================================================================
@@ -365,7 +365,7 @@ async fn get_last_email_returns_email() {
     let mailer = LocalMailer::new();
     send_email(&mailer).await;
     let last = get_last_email(&mailer);
-    assert_eq!(last.email.subject, "Hello, Avengers!");
+    assert_eq!(last.email.subject_line(), "Hello, Avengers!");
 }
 
 #[tokio::test]
@@ -414,5 +414,5 @@ async fn get_emails_to_returns_matching_emails() {
 
     let steve_emails = get_emails_to(&mailer, "steve.rogers@example.com");
     assert_eq!(steve_emails.len(), 1);
-    assert_eq!(steve_emails[0].email.subject, "For Steve");
+    assert_eq!(steve_emails[0].email.subject_line(), "For Steve");
 }
