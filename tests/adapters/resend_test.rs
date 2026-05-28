@@ -2,7 +2,8 @@
 //!
 //! Ported from Swoosh's resend_test.exs
 
-use missive::providers::ResendMailer;
+use chrono::{TimeZone, Utc};
+use missive::providers::{ResendEmailExt, ResendMailer};
 use missive::{Attachment, Email, MailError, Mailer};
 use serde_json::json;
 use std::fs;
@@ -186,6 +187,55 @@ async fn deliver_with_tags_returns_ok() {
         .expect(1)
         .mount(&server)
         .await;
+
+    let result = mailer.deliver(&email).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn typed_resend_options_are_sent() {
+    let server = MockServer::start().await;
+    let mailer = ResendMailer::new("re_123456789").base_url(server.uri());
+    let scheduled_at = Utc.with_ymd_and_hms(2024, 12, 1, 0, 0, 0).unwrap();
+
+    Mock::given(method("POST"))
+        .and(path("/emails"))
+        .and(header("Idempotency-Key", "welcome-123"))
+        .and(body_json(json!({
+            "from": "tony.stark@example.com",
+            "to": ["steve.rogers@example.com"],
+            "subject": "Hello, Avengers!",
+            "html": "<h1>Hello</h1>",
+            "text": "Hello",
+            "tags": [
+                {"name": "category", "value": "welcome"},
+                {"name": "source", "value": "signup"}
+            ],
+            "scheduled_at": "2024-12-01T00:00:00+00:00",
+            "template": {
+                "id": "welcome-template",
+                "variables": {
+                    "name": "Steve"
+                }
+            }
+        })))
+        .respond_with(success_response())
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let email = valid_email()
+        .resend_tag("category", "welcome")
+        .resend_tag("source", "signup")
+        .resend_scheduled_at(scheduled_at)
+        .resend_idempotency_key("welcome-123")
+        .resend_template(json!({
+            "id": "welcome-template",
+            "variables": {
+                "name": "Steve"
+            }
+        }))
+        .unwrap();
 
     let result = mailer.deliver(&email).await;
     assert!(result.is_ok());

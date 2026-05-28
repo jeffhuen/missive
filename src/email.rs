@@ -164,10 +164,12 @@ impl Email {
         self
     }
 
-    /// Set a provider-specific option.
+    /// Set a raw provider-specific option.
     ///
-    /// These are passed to the adapter for provider-specific features
-    /// (e.g., SendGrid categories, Postmark tags, Resend templates).
+    /// Prefer provider-specific typed extension traits such as
+    /// `ResendEmailExt` where available. This method is an advanced escape
+    /// hatch for custom providers or provider features that do not have typed
+    /// helpers yet.
     ///
     /// # Example
     ///

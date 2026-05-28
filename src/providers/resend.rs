@@ -10,16 +10,19 @@
 //!
 //! ## Provider Options
 //!
-//! Resend-specific options can be set via `provider_option`:
+//! Resend-specific options should be set via [`ResendEmailExt`]:
 //!
 //! ```rust,ignore
+//! use chrono::Utc;
+//! use missive::providers::ResendEmailExt;
+//!
 //! let email = Email::new()
 //!     .from("sender@example.com")
 //!     .to("recipient@example.com")
 //!     .subject("Hello")
-//!     .provider_option("tags", vec![json!({"name": "category", "value": "welcome"})])
-//!     .provider_option("scheduled_at", "2024-01-01T00:00:00Z")
-//!     .provider_option("idempotency_key", "unique-key-123");
+//!     .resend_tag("category", "welcome")
+//!     .resend_scheduled_at(Utc::now())
+//!     .resend_idempotency_key("unique-key-123");
 //! ```
 //!
 //! ## Template Support
@@ -47,6 +50,7 @@
 //! ```
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -62,6 +66,76 @@ pub struct ResendMailer {
     api_key: String,
     client: Client,
     base_url: String,
+}
+
+/// Typed extension methods for Resend-specific email options.
+pub trait ResendEmailExt: Sized {
+    /// Add a Resend analytics tag.
+    fn resend_tag<N, V>(self, name: N, value: V) -> Self
+    where
+        N: Into<String>,
+        V: Into<String>;
+
+    /// Schedule a Resend email for a future time.
+    fn resend_scheduled_at(self, scheduled_at: DateTime<Utc>) -> Self;
+
+    /// Set the Resend idempotency key request header.
+    fn resend_idempotency_key<K>(self, key: K) -> Self
+    where
+        K: Into<String>;
+
+    /// Set a Resend template payload.
+    fn resend_template<T>(self, template: T) -> Result<Self, MailError>
+    where
+        T: Serialize;
+}
+
+impl ResendEmailExt for Email {
+    fn resend_tag<N, V>(mut self, name: N, value: V) -> Self
+    where
+        N: Into<String>,
+        V: Into<String>,
+    {
+        let tag = serde_json::json!({
+            "name": name.into(),
+            "value": value.into(),
+        });
+
+        match self.provider_options.get_mut("tags") {
+            Some(Value::Array(tags)) => tags.push(tag),
+            _ => {
+                self.provider_options
+                    .insert("tags".to_string(), Value::Array(vec![tag]));
+            }
+        }
+        self
+    }
+
+    fn resend_scheduled_at(mut self, scheduled_at: DateTime<Utc>) -> Self {
+        self.provider_options.insert(
+            "scheduled_at".to_string(),
+            Value::String(scheduled_at.to_rfc3339()),
+        );
+        self
+    }
+
+    fn resend_idempotency_key<K>(mut self, key: K) -> Self
+    where
+        K: Into<String>,
+    {
+        self.provider_options
+            .insert("idempotency_key".to_string(), Value::String(key.into()));
+        self
+    }
+
+    fn resend_template<T>(mut self, template: T) -> Result<Self, MailError>
+    where
+        T: Serialize,
+    {
+        self.provider_options
+            .insert("template".to_string(), serde_json::to_value(template)?);
+        Ok(self)
+    }
 }
 
 impl ResendMailer {
@@ -343,10 +417,10 @@ struct ResendAttachment {
     content_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct ResendTag {
-    name: String,
-    value: String,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResendTag {
+    pub name: String,
+    pub value: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -31,7 +31,7 @@ pub use smtp::SmtpMailer;
 #[cfg(feature = "resend")]
 mod resend;
 #[cfg(feature = "resend")]
-pub use resend::ResendMailer;
+pub use resend::{ResendEmailExt, ResendMailer, ResendTag};
 
 #[cfg(feature = "unsent")]
 mod unsent;

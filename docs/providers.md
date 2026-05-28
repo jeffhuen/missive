@@ -56,22 +56,23 @@ let client = EmailClient::new(mailer)
 |----------|----------|-------------|
 | `RESEND_API_KEY` | Yes | Your Resend API key (starts with `re_`) |
 
-**Provider Options:**
+**Typed Provider Options:**
 
 ```rust
+use chrono::Utc;
 use missive::Email;
-use serde_json::json;
+use missive::providers::ResendEmailExt;
 
 let email = Email::new()
     .to("user@example.com")
     .subject("Hello")
-    // Resend-specific options
-    .provider_option("tags", json!([
-        {"name": "category", "value": "welcome"},
-        {"name": "source", "value": "signup"}
-    ]))
-    .provider_option("scheduled_at", "2024-12-01T00:00:00Z");
+    .resend_tag("category", "welcome")
+    .resend_scheduled_at(Utc::now())
+    .resend_idempotency_key("welcome-123");
 ```
+
+Raw `.provider_option(...)` remains available as an advanced escape hatch for
+provider features that do not have typed helpers yet.
 
 **Available Options:**
 
