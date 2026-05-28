@@ -504,7 +504,7 @@ fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
                     message.push_str(&format!("Content-ID: <{}>\r\n", cid));
                 }
                 message.push_str("\r\n");
-                message.push_str(&attachment.base64_data());
+                message.push_str(&attachment.base64_data()?);
                 message.push_str("\r\n");
             }
 
@@ -547,7 +547,7 @@ fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
                 attachment.filename
             ));
             message.push_str("\r\n");
-            message.push_str(&attachment.base64_data());
+            message.push_str(&attachment.base64_data()?);
             message.push_str("\r\n");
         }
 

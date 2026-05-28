@@ -439,7 +439,7 @@ impl JmapMailer {
                         body_values.insert(
                             part_id.clone(),
                             json!({
-                                "value": a.base64_data(),
+                                "value": a.base64_data()?,
                                 "isEncodingProblem": false,
                                 "isTruncated": false,
                             }),
@@ -453,9 +453,9 @@ impl JmapMailer {
                         if let Some(ref cid) = a.content_id {
                             att["cid"] = json!(cid);
                         }
-                        att
+                        Ok(att)
                     })
-                    .collect(),
+                    .collect::<Result<_, MailError>>()?,
             )
         };
 

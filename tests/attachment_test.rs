@@ -2,7 +2,8 @@
 //!
 //! Ported from Swoosh's attachment_test.exs
 
-use missive::{Attachment, AttachmentType};
+use missive::{Attachment, AttachmentType, MailError};
+use std::fs;
 
 // ============================================================================
 // Constructor Tests
@@ -119,7 +120,38 @@ fn get_data_returns_data() {
 fn base64_data_returns_encoded_data() {
     let attachment = Attachment::from_bytes("test.txt", b"assemble".to_vec());
     // "assemble" in base64 is "YXNzZW1ibGU="
-    assert_eq!(attachment.base64_data(), "YXNzZW1ibGU=");
+    assert_eq!(attachment.base64_data().unwrap(), "YXNzZW1ibGU=");
+}
+
+#[test]
+fn base64_data_returns_error_when_lazy_file_is_missing() {
+    let path = std::env::temp_dir().join(format!(
+        "missive-missing-attachment-{}.txt",
+        std::process::id()
+    ));
+    fs::write(&path, b"content").unwrap();
+
+    let attachment = Attachment::from_path_lazy(&path).unwrap();
+    fs::remove_file(&path).unwrap();
+
+    let err = attachment.base64_data().unwrap_err();
+    assert!(matches!(err, MailError::AttachmentFileNotFound(_)));
+}
+
+#[test]
+fn base64_data_returns_error_when_lazy_file_cannot_be_read() {
+    let path = std::env::temp_dir().join(format!(
+        "missive-unreadable-attachment-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&path).unwrap();
+
+    let attachment = Attachment::from_path_lazy(&path).unwrap();
+
+    let err = attachment.base64_data().unwrap_err();
+    assert!(matches!(err, MailError::AttachmentReadError(_)));
+
+    fs::remove_dir(&path).unwrap();
 }
 
 #[test]

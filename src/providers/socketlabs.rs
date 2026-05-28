@@ -155,18 +155,20 @@ impl SocketLabsMailer {
                 email
                     .attachments
                     .iter()
-                    .map(|a| SocketLabsAttachment {
-                        name: a.filename.clone(),
-                        content_type: a.content_type.clone(),
-                        content: a.base64_data(),
-                        // Use filename as ContentId for inline attachments
-                        content_id: if a.is_inline() {
-                            a.content_id.clone().unwrap_or_else(|| a.filename.clone())
-                        } else {
-                            a.filename.clone()
-                        },
+                    .map(|a| {
+                        Ok(SocketLabsAttachment {
+                            name: a.filename.clone(),
+                            content_type: a.content_type.clone(),
+                            content: a.base64_data()?,
+                            // Use filename as ContentId for inline attachments
+                            content_id: if a.is_inline() {
+                                a.content_id.clone().unwrap_or_else(|| a.filename.clone())
+                            } else {
+                                a.filename.clone()
+                            },
+                        })
                     })
-                    .collect(),
+                    .collect::<Result<_, MailError>>()?,
             );
         }
 

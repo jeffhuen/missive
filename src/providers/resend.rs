@@ -149,14 +149,14 @@ impl ResendMailer {
                     } else {
                         None
                     };
-                    ResendAttachment {
+                    Ok(ResendAttachment {
                         filename: a.filename.clone(),
-                        content: a.base64_data(),
+                        content: a.base64_data()?,
                         content_type: Some(a.content_type.clone()),
                         content_id,
-                    }
+                    })
                 })
-                .collect();
+                .collect::<Result<_, MailError>>()?;
             request.attachments = Some(attachments);
         }
 

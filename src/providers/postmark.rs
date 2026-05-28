@@ -181,14 +181,14 @@ impl PostmarkMailer {
                         } else {
                             None
                         };
-                        PostmarkAttachment {
+                        Ok(PostmarkAttachment {
                             name: a.filename.clone(),
-                            content: a.base64_data(),
+                            content: a.base64_data()?,
                             content_type: a.content_type.clone(),
                             content_id,
-                        }
+                        })
                     })
-                    .collect(),
+                    .collect::<Result<_, MailError>>()?,
             );
         }
 

@@ -156,6 +156,7 @@ impl GmailMailer {
             let mut multipart = MultiPart::mixed().multipart(body_part);
 
             for attachment in &email.attachments {
+                let data = attachment.get_data()?;
                 let content_type: ContentType = attachment
                     .content_type
                     .parse()
@@ -167,12 +168,10 @@ impl GmailMailer {
                             .content_id
                             .as_ref()
                             .unwrap_or(&attachment.filename);
-                        LettreAttachment::new_inline(cid.clone())
-                            .body(attachment.data.clone(), content_type)
+                        LettreAttachment::new_inline(cid.clone()).body(data, content_type)
                     }
                     AttachmentType::Attachment => {
-                        LettreAttachment::new(attachment.filename.clone())
-                            .body(attachment.data.clone(), content_type)
+                        LettreAttachment::new(attachment.filename.clone()).body(data, content_type)
                     }
                 };
 

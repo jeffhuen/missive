@@ -174,13 +174,18 @@ impl MailjetMailer {
                 message.attachments = Some(
                     regular
                         .iter()
-                        .map(|a| MailjetAttachment {
-                            content_type: a.content_type.clone(),
-                            filename: a.filename.clone(),
-                            base64_content: a.base64_data(),
-                            content_id: a.content_id.clone().unwrap_or_else(|| a.filename.clone()),
+                        .map(|a| {
+                            Ok(MailjetAttachment {
+                                content_type: a.content_type.clone(),
+                                filename: a.filename.clone(),
+                                base64_content: a.base64_data()?,
+                                content_id: a
+                                    .content_id
+                                    .clone()
+                                    .unwrap_or_else(|| a.filename.clone()),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 );
             }
 
@@ -188,13 +193,18 @@ impl MailjetMailer {
                 message.inlined_attachments = Some(
                     inline
                         .iter()
-                        .map(|a| MailjetAttachment {
-                            content_type: a.content_type.clone(),
-                            filename: a.filename.clone(),
-                            base64_content: a.base64_data(),
-                            content_id: a.content_id.clone().unwrap_or_else(|| a.filename.clone()),
+                        .map(|a| {
+                            Ok(MailjetAttachment {
+                                content_type: a.content_type.clone(),
+                                filename: a.filename.clone(),
+                                base64_content: a.base64_data()?,
+                                content_id: a
+                                    .content_id
+                                    .clone()
+                                    .unwrap_or_else(|| a.filename.clone()),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 );
             }
         }

@@ -3,8 +3,9 @@
 //! Ported from Swoosh's resend_test.exs
 
 use missive::providers::ResendMailer;
-use missive::{Attachment, Email, Mailer};
+use missive::{Attachment, Email, MailError, Mailer};
 use serde_json::json;
+use std::fs;
 use wiremock::matchers::{body_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -242,6 +243,23 @@ async fn deliver_with_custom_headers_returns_ok() {
 
     let result = mailer.deliver(&email).await;
     assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn deliver_with_missing_lazy_attachment_returns_attachment_error() {
+    let server = MockServer::start().await;
+    let mailer = ResendMailer::new("re_123456789").base_url(server.uri());
+    let path = std::env::temp_dir().join(format!(
+        "missive-resend-missing-attachment-{}.txt",
+        std::process::id()
+    ));
+    fs::write(&path, b"content").unwrap();
+
+    let email = valid_email().attachment(Attachment::from_path_lazy(&path).unwrap());
+    fs::remove_file(&path).unwrap();
+
+    let err = mailer.deliver(&email).await.unwrap_err();
+    assert!(matches!(err, MailError::AttachmentFileNotFound(_)));
 }
 
 // ============================================================================

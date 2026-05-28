@@ -210,15 +210,15 @@ impl SendGridMailer {
                                 ("attachment".to_string(), None)
                             }
                         };
-                        SendGridAttachment {
-                            content: a.base64_data(),
+                        Ok(SendGridAttachment {
+                            content: a.base64_data()?,
                             filename: a.filename.clone(),
                             content_type: Some(a.content_type.clone()),
                             disposition: Some(disposition),
                             content_id,
-                        }
+                        })
                     })
-                    .collect(),
+                    .collect::<Result<_, MailError>>()?,
             );
         }
 

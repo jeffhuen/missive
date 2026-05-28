@@ -224,9 +224,7 @@ impl MailgunMailer {
 
         // Attachments
         for attachment in &email.attachments {
-            let data = attachment.get_data().map_err(|e| {
-                MailError::AttachmentError(format!("{}: {}", attachment.filename, e))
-            })?;
+            let data = attachment.get_data()?;
 
             let field_name = match attachment.disposition {
                 crate::attachment::AttachmentType::Inline => "inline",

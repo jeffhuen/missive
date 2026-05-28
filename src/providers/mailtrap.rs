@@ -174,7 +174,7 @@ impl MailtrapMailer {
                         let mut attachment = MailtrapAttachment {
                             filename: a.filename.clone(),
                             content_type: a.content_type.clone(),
-                            content: a.base64_data(),
+                            content: a.base64_data()?,
                             disposition: if a.is_inline() {
                                 "inline".to_string()
                             } else {
@@ -185,9 +185,9 @@ impl MailtrapMailer {
                         if a.is_inline() {
                             attachment.content_id = Some(a.filename.clone());
                         }
-                        attachment
+                        Ok(attachment)
                     })
-                    .collect(),
+                    .collect::<Result<_, MailError>>()?,
             );
         }
 

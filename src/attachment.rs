@@ -216,10 +216,10 @@ impl Attachment {
     /// Get the attachment data as base64-encoded string.
     ///
     /// For path-based attachments, reads and encodes the file.
-    pub fn base64_data(&self) -> String {
+    pub fn base64_data(&self) -> Result<String, MailError> {
         use base64::Engine;
-        let data = self.get_data().unwrap_or_default();
-        base64::engine::general_purpose::STANDARD.encode(&data)
+        let data = self.get_data()?;
+        Ok(base64::engine::general_purpose::STANDARD.encode(&data))
     }
 
     /// Get the size in bytes.
@@ -295,6 +295,6 @@ mod tests {
     #[test]
     fn test_base64() {
         let attachment = Attachment::from_bytes("test.txt", b"Hello".to_vec());
-        assert_eq!(attachment.base64_data(), "SGVsbG8=");
+        assert_eq!(attachment.base64_data().unwrap(), "SGVsbG8=");
     }
 }

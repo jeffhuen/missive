@@ -153,11 +153,13 @@ impl BrevoMailer {
                 email
                     .attachments
                     .iter()
-                    .map(|a| BrevoAttachment {
-                        name: a.filename.clone(),
-                        content: a.base64_data(),
+                    .map(|a| {
+                        Ok(BrevoAttachment {
+                            name: a.filename.clone(),
+                            content: a.base64_data()?,
+                        })
                     })
-                    .collect(),
+                    .collect::<Result<_, MailError>>()?,
             );
         }
 
@@ -279,11 +281,13 @@ impl Mailer for BrevoMailer {
                     first_email
                         .attachments
                         .iter()
-                        .map(|a| BrevoAttachment {
-                            name: a.filename.clone(),
-                            content: a.base64_data(),
+                        .map(|a| {
+                            Ok(BrevoAttachment {
+                                name: a.filename.clone(),
+                                content: a.base64_data()?,
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 )
             },
             scheduled_at: first_email
