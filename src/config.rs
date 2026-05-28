@@ -20,8 +20,10 @@
     allow(dead_code, unused_variables)
 )]
 
-use std::env;
 use std::sync::Arc;
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+use std::env;
 
 use crate::address::Address;
 use crate::client::EmailClient;
@@ -32,7 +34,10 @@ use crate::providers;
 /// Typed configuration for building a mailer from environment-like input.
 #[derive(Debug, Clone)]
 pub enum MailerConfig {
-    #[cfg(feature = "smtp")]
+    #[cfg(all(
+        feature = "smtp",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     Smtp(SmtpConfig),
     #[cfg(feature = "resend")]
     Resend(ResendConfig),
@@ -44,7 +49,10 @@ pub enum MailerConfig {
     SendGrid(ApiKeyConfig),
     #[cfg(feature = "brevo")]
     Brevo(ApiKeyConfig),
-    #[cfg(feature = "mailgun")]
+    #[cfg(all(
+        feature = "mailgun",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     Mailgun(MailgunConfig),
     #[cfg(feature = "amazon_ses")]
     AmazonSes(AmazonSesConfig),
@@ -54,9 +62,15 @@ pub enum MailerConfig {
     Mailjet(MailjetConfig),
     #[cfg(feature = "socketlabs")]
     SocketLabs(SocketLabsConfig),
-    #[cfg(feature = "gmail")]
+    #[cfg(all(
+        feature = "gmail",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     Gmail(ApiKeyConfig),
-    #[cfg(feature = "protonbridge")]
+    #[cfg(all(
+        feature = "protonbridge",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     ProtonBridge(ProtonBridgeConfig),
     #[cfg(feature = "jmap")]
     Jmap(JmapConfig),
@@ -75,7 +89,17 @@ impl MailerConfig {
     /// Brevo, Mailgun, Amazon SES, Mailtrap, Mailjet, SocketLabs, Gmail,
     /// Proton Bridge, JMAP, SMTP, Local.
     pub fn from_env() -> Result<Self, MailError> {
-        Self::from_env_with(|key| env::var(key).ok())
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        {
+            Err(MailError::UnsupportedFeature(
+                "MailerConfig::from_env() requires process environment variables; use MailerConfig::from_env_with() on wasm32-unknown-unknown".into(),
+            ))
+        }
+
+        #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+        {
+            Self::from_env_with(|key| env::var(key).ok())
+        }
     }
 
     /// Build mailer configuration from a testable environment source.
@@ -105,14 +129,21 @@ impl MailerConfig {
         Self::for_provider_from_env(&provider, get)
     }
 
+    #[allow(unused_variables)]
     fn for_provider_from_env<F>(provider: &str, get: &mut F) -> Result<Self, MailError>
     where
         F: FnMut(&str) -> Option<String> + ?Sized,
     {
         match provider {
-            #[cfg(feature = "smtp")]
+            #[cfg(all(
+                feature = "smtp",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             "smtp" => Ok(Self::Smtp(SmtpConfig::from_env_with_ref(get)?)),
-            #[cfg(not(feature = "smtp"))]
+            #[cfg(any(
+                not(feature = "smtp"),
+                all(feature = "smtp", target_family = "wasm", target_os = "unknown")
+            ))]
             "smtp" => Err(feature_disabled("smtp")),
 
             #[cfg(feature = "resend")]
@@ -152,9 +183,19 @@ impl MailerConfig {
             #[cfg(not(feature = "brevo"))]
             "brevo" => Err(feature_disabled("brevo")),
 
-            #[cfg(feature = "mailgun")]
+            #[cfg(all(
+                feature = "mailgun",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             "mailgun" => Ok(Self::Mailgun(MailgunConfig::from_env_with_ref(get)?)),
-            #[cfg(not(feature = "mailgun"))]
+            #[cfg(any(
+                not(feature = "mailgun"),
+                all(
+                    feature = "mailgun",
+                    target_family = "wasm",
+                    target_os = "unknown"
+                )
+            ))]
             "mailgun" => Err(feature_disabled("mailgun")),
 
             #[cfg(feature = "amazon_ses")]
@@ -177,19 +218,35 @@ impl MailerConfig {
             #[cfg(not(feature = "socketlabs"))]
             "socketlabs" => Err(feature_disabled("socketlabs")),
 
-            #[cfg(feature = "gmail")]
+            #[cfg(all(
+                feature = "gmail",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             "gmail" => Ok(Self::Gmail(ApiKeyConfig::from_env_with_ref(
                 get,
                 "GMAIL_ACCESS_TOKEN",
             )?)),
-            #[cfg(not(feature = "gmail"))]
+            #[cfg(any(
+                not(feature = "gmail"),
+                all(feature = "gmail", target_family = "wasm", target_os = "unknown")
+            ))]
             "gmail" => Err(feature_disabled("gmail")),
 
-            #[cfg(feature = "protonbridge")]
+            #[cfg(all(
+                feature = "protonbridge",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             "protonbridge" => Ok(Self::ProtonBridge(ProtonBridgeConfig::from_env_with_ref(
                 get,
             )?)),
-            #[cfg(not(feature = "protonbridge"))]
+            #[cfg(any(
+                not(feature = "protonbridge"),
+                all(
+                    feature = "protonbridge",
+                    target_family = "wasm",
+                    target_os = "unknown"
+                )
+            ))]
             "protonbridge" => Err(feature_disabled("protonbridge")),
 
             #[cfg(feature = "jmap")]
@@ -214,7 +271,10 @@ impl MailerConfig {
     /// Name of the provider selected by this config.
     pub fn provider_name(&self) -> &'static str {
         match self {
-            #[cfg(feature = "smtp")]
+            #[cfg(all(
+                feature = "smtp",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::Smtp(_) => "smtp",
             #[cfg(feature = "resend")]
             Self::Resend(_) => "resend",
@@ -226,7 +286,10 @@ impl MailerConfig {
             Self::SendGrid(_) => "sendgrid",
             #[cfg(feature = "brevo")]
             Self::Brevo(_) => "brevo",
-            #[cfg(feature = "mailgun")]
+            #[cfg(all(
+                feature = "mailgun",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::Mailgun(_) => "mailgun",
             #[cfg(feature = "amazon_ses")]
             Self::AmazonSes(_) => "amazon_ses",
@@ -236,9 +299,15 @@ impl MailerConfig {
             Self::Mailjet(_) => "mailjet",
             #[cfg(feature = "socketlabs")]
             Self::SocketLabs(_) => "socketlabs",
-            #[cfg(feature = "gmail")]
+            #[cfg(all(
+                feature = "gmail",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::Gmail(_) => "gmail",
-            #[cfg(feature = "protonbridge")]
+            #[cfg(all(
+                feature = "protonbridge",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::ProtonBridge(_) => "protonbridge",
             #[cfg(feature = "jmap")]
             Self::Jmap(_) => "jmap",
@@ -252,7 +321,10 @@ impl MailerConfig {
     /// Build the configured mailer.
     pub fn into_mailer(self) -> Result<Arc<dyn Mailer>, MailError> {
         match self {
-            #[cfg(feature = "smtp")]
+            #[cfg(all(
+                feature = "smtp",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::Smtp(config) => Ok(Arc::new(config.into_mailer())),
             #[cfg(feature = "resend")]
             Self::Resend(config) => Ok(Arc::new(providers::ResendMailer::new(config.api_key))),
@@ -264,7 +336,10 @@ impl MailerConfig {
             Self::SendGrid(config) => Ok(Arc::new(providers::SendGridMailer::new(config.api_key))),
             #[cfg(feature = "brevo")]
             Self::Brevo(config) => Ok(Arc::new(providers::BrevoMailer::new(config.api_key))),
-            #[cfg(feature = "mailgun")]
+            #[cfg(all(
+                feature = "mailgun",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::Mailgun(config) => Ok(Arc::new(config.into_mailer())),
             #[cfg(feature = "amazon_ses")]
             Self::AmazonSes(config) => Ok(Arc::new(providers::AmazonSesMailer::new(
@@ -284,9 +359,15 @@ impl MailerConfig {
                 config.server_id,
                 config.api_key,
             ))),
-            #[cfg(feature = "gmail")]
+            #[cfg(all(
+                feature = "gmail",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::Gmail(config) => Ok(Arc::new(providers::GmailMailer::new(config.api_key))),
-            #[cfg(feature = "protonbridge")]
+            #[cfg(all(
+                feature = "protonbridge",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             Self::ProtonBridge(config) => Ok(Arc::new(config.into_mailer())),
             #[cfg(feature = "jmap")]
             Self::Jmap(config) => Ok(Arc::new(config.into_mailer())),
@@ -311,6 +392,7 @@ impl ApiKeyConfig {
         })
     }
 
+    #[allow(dead_code)]
     fn from_env_with_ref<F>(get: &mut F, api_key_name: &'static str) -> Result<Self, MailError>
     where
         F: FnMut(&str) -> Option<String> + ?Sized,
@@ -334,8 +416,18 @@ impl ResendConfig {
     }
 
     pub fn from_env() -> Result<Self, MailError> {
-        let mut get = |key: &str| env::var(key).ok();
-        Self::from_env_with_ref(&mut get)
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        {
+            Err(MailError::UnsupportedFeature(
+                "ResendConfig::from_env() requires process environment variables; use ResendConfig::from_env_with() on wasm32-unknown-unknown".into(),
+            ))
+        }
+
+        #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+        {
+            let mut get = |key: &str| env::var(key).ok();
+            Self::from_env_with_ref(&mut get)
+        }
     }
 
     pub fn from_env_with<F>(mut get: F) -> Result<Self, MailError>
@@ -353,7 +445,10 @@ impl ResendConfig {
     }
 }
 
-#[cfg(feature = "smtp")]
+#[cfg(all(
+    feature = "smtp",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 #[derive(Debug, Clone)]
 pub struct SmtpConfig {
     pub host: String,
@@ -362,7 +457,10 @@ pub struct SmtpConfig {
     pub password: Option<String>,
 }
 
-#[cfg(feature = "smtp")]
+#[cfg(all(
+    feature = "smtp",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 impl SmtpConfig {
     pub fn new(host: impl Into<String>, port: u16) -> Result<Self, MailError> {
         Ok(Self {
@@ -396,7 +494,10 @@ impl SmtpConfig {
     }
 }
 
-#[cfg(feature = "mailgun")]
+#[cfg(all(
+    feature = "mailgun",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 #[derive(Debug, Clone)]
 pub struct MailgunConfig {
     pub api_key: String,
@@ -404,7 +505,10 @@ pub struct MailgunConfig {
     pub base_url: Option<String>,
 }
 
-#[cfg(feature = "mailgun")]
+#[cfg(all(
+    feature = "mailgun",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 impl MailgunConfig {
     fn from_env_with_ref<F>(get: &mut F) -> Result<Self, MailError>
     where
@@ -516,7 +620,10 @@ impl SocketLabsConfig {
     }
 }
 
-#[cfg(feature = "protonbridge")]
+#[cfg(all(
+    feature = "protonbridge",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 #[derive(Debug, Clone)]
 pub struct ProtonBridgeConfig {
     pub username: String,
@@ -525,7 +632,10 @@ pub struct ProtonBridgeConfig {
     pub port: Option<u16>,
 }
 
-#[cfg(feature = "protonbridge")]
+#[cfg(all(
+    feature = "protonbridge",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 impl ProtonBridgeConfig {
     fn from_env_with_ref<F>(get: &mut F) -> Result<Self, MailError>
     where
@@ -598,7 +708,17 @@ impl JmapConfig {
 impl EmailClient<Arc<dyn Mailer>> {
     /// Build an explicit client from process environment variables.
     pub fn from_env() -> Result<Self, MailError> {
-        Self::from_env_with(|key| env::var(key).ok())
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        {
+            Err(MailError::UnsupportedFeature(
+                "EmailClient::from_env() requires process environment variables; use EmailClient::from_env_with() on wasm32-unknown-unknown".into(),
+            ))
+        }
+
+        #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+        {
+            Self::from_env_with(|key| env::var(key).ok())
+        }
     }
 
     /// Build an explicit client from a testable environment source.
@@ -624,6 +744,7 @@ where
     })
 }
 
+#[allow(unused_variables)]
 fn detect_provider_with<F>(get: &mut F) -> Option<&'static str>
 where
     F: FnMut(&str) -> Option<String> + ?Sized,
@@ -648,7 +769,10 @@ where
     if optional_var(get, "BREVO_API_KEY").is_some() {
         return Some("brevo");
     }
-    #[cfg(feature = "mailgun")]
+    #[cfg(all(
+        feature = "mailgun",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     if optional_var(get, "MAILGUN_API_KEY").is_some()
         && optional_var(get, "MAILGUN_DOMAIN").is_some()
     {
@@ -677,11 +801,17 @@ where
     {
         return Some("socketlabs");
     }
-    #[cfg(feature = "gmail")]
+    #[cfg(all(
+        feature = "gmail",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     if optional_var(get, "GMAIL_ACCESS_TOKEN").is_some() {
         return Some("gmail");
     }
-    #[cfg(feature = "protonbridge")]
+    #[cfg(all(
+        feature = "protonbridge",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     if optional_var(get, "PROTONBRIDGE_USERNAME").is_some()
         && optional_var(get, "PROTONBRIDGE_PASSWORD").is_some()
     {
@@ -695,7 +825,10 @@ where
     {
         return Some("jmap");
     }
-    #[cfg(feature = "smtp")]
+    #[cfg(all(
+        feature = "smtp",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     if optional_var(get, "SMTP_HOST").is_some() {
         return Some("smtp");
     }
@@ -729,6 +862,10 @@ fn required_value(name: &'static str, value: String) -> Result<String, MailError
     }
 }
 
+#[cfg(all(
+    feature = "smtp",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 fn optional_port<F>(get: &mut F, name: &'static str, default: u16) -> Result<u16, MailError>
 where
     F: FnMut(&str) -> Option<String> + ?Sized,
@@ -739,6 +876,10 @@ where
     }
 }
 
+#[cfg(all(
+    not(all(target_family = "wasm", target_os = "unknown")),
+    any(feature = "smtp", feature = "protonbridge")
+))]
 fn parse_port(name: &'static str, value: &str) -> Result<u16, MailError> {
     value.parse::<u16>().map_err(|source| {
         MailError::Configuration(format!("{name} must be a valid port: {source}"))

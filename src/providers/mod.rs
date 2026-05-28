@@ -23,9 +23,15 @@
 //! | [`LocalMailer`] | `local` | In-memory storage for dev/testing |
 //! | [`LoggerMailer`] | (none) | Logs emails without storing |
 
-#[cfg(feature = "smtp")]
+#[cfg(all(
+    feature = "smtp",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 mod smtp;
-#[cfg(feature = "smtp")]
+#[cfg(all(
+    feature = "smtp",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 pub use smtp::SmtpMailer;
 
 #[cfg(feature = "resend")]
@@ -53,9 +59,15 @@ mod brevo;
 #[cfg(feature = "brevo")]
 pub use brevo::BrevoMailer;
 
-#[cfg(feature = "mailgun")]
+#[cfg(all(
+    feature = "mailgun",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 mod mailgun;
-#[cfg(feature = "mailgun")]
+#[cfg(all(
+    feature = "mailgun",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 pub use mailgun::MailgunMailer;
 
 #[cfg(feature = "amazon_ses")]
@@ -78,14 +90,26 @@ mod socketlabs;
 #[cfg(feature = "socketlabs")]
 pub use socketlabs::SocketLabsMailer;
 
-#[cfg(feature = "gmail")]
+#[cfg(all(
+    feature = "gmail",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 mod gmail;
-#[cfg(feature = "gmail")]
+#[cfg(all(
+    feature = "gmail",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 pub use gmail::GmailMailer;
 
-#[cfg(feature = "protonbridge")]
+#[cfg(all(
+    feature = "protonbridge",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 mod protonbridge;
-#[cfg(feature = "protonbridge")]
+#[cfg(all(
+    feature = "protonbridge",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
 pub use protonbridge::ProtonBridgeMailer;
 
 #[cfg(feature = "jmap")]

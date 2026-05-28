@@ -40,6 +40,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --features full
 
+  wasm:
+    name: WASM Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --target wasm32-unknown-unknown --no-default-features
+      - run: cargo check --target wasm32-unknown-unknown --no-default-features --features "resend,unsent,postmark,sendgrid,brevo,amazon_ses,mailtrap,mailjet,socketlabs,jmap,local"
+
   audit:
     name: Security Audit
     runs-on: ubuntu-latest

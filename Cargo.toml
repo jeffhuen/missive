@@ -13,7 +13,7 @@ default = []
 
 # Internal features (not for direct use)
 _http = ["dep:reqwest", "_async_attachment_io"]  # Shared HTTP client for API-based providers
-_aws_sig = ["dep:ring", "dep:sha2", "dep:hex", "dep:urlencoding"]  # AWS Signature v4
+_aws_sig = ["dep:hmac", "dep:sha2", "dep:hex", "dep:urlencoding"]  # AWS Signature v4
 _async_attachment_io = ["dep:tokio"]  # Async lazy attachment file reads for async providers
 
 # Providers
@@ -51,34 +51,14 @@ dev = ["local", "preview"]
 [dependencies]
 # Core
 async-trait = "0.1"  # Required for dyn Mailer compatibility (see src/mailer.rs)
-parking_lot = "0.12"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
 tracing = "0.1"
 mime_guess = "2"
 base64 = "0.22"
 email_address = "0.2"
 idna = "1.0"
-
-# Optional: SMTP
-lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"], optional = true }
-
-# Optional: HTTP-based providers
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"], optional = true }
-tokio = { version = "1", features = ["fs", "rt"], optional = true }
-
-# Optional: Preview UI (Axum)
-axum = { version = "0.8", optional = true }
-tower-http = { version = "0.6", features = ["fs"], optional = true }
-
-# Optional: Preview UI (Actix)
-actix-web = { version = "4", optional = true }
-
-# Optional: Standalone preview server
-tiny_http = { version = "0.12", optional = true }
 
 # Optional: Local mailer
 regex = { version = "1", optional = true }
@@ -90,13 +70,32 @@ askama = { version = "0.13", optional = true }
 metrics = { version = "0.24", optional = true }
 
 # Optional: AWS Signature v4 (for Amazon SES)
-ring = { version = "0.17", optional = true }
+hmac = { version = "0.12", optional = true }
 sha2 = { version = "0.10", optional = true }
 hex = { version = "0.4", optional = true }
 urlencoding = { version = "2", optional = true }
 
 # Optional: Compression (for SendGrid)
 flate2 = { version = "1.0", optional = true }
+
+[target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
+actix-web = { version = "4", optional = true }
+axum = { version = "0.8", optional = true }
+chrono = { version = "0.4", features = ["serde"] }
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"], optional = true }
+parking_lot = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"], optional = true }
+tiny_http = { version = "0.12", optional = true }
+tokio = { version = "1", default-features = false, features = ["fs", "rt"], optional = true }
+tower-http = { version = "0.6", features = ["fs"], optional = true }
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
+chrono = { version = "0.4", features = ["serde", "wasmbind"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"], optional = true }
+tokio = { version = "1", default-features = false, features = ["rt"], optional = true }
+uuid = { version = "1", features = ["v4", "js"] }
+web-time = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

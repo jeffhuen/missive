@@ -54,8 +54,8 @@
 use async_trait::async_trait;
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use hmac::{Hmac, Mac};
 use reqwest::Client;
-use ring::hmac;
 use sha2::{Digest, Sha256};
 
 use crate::email::{Email, PreparedEmail};
@@ -66,6 +66,7 @@ const SERVICE_NAME: &str = "ses";
 const ACTION: &str = "SendRawEmail";
 const VERSION: &str = "2010-12-01";
 const ENCODING: &str = "AWS4-HMAC-SHA256";
+type HmacSha256 = Hmac<Sha256>;
 
 /// Amazon SES API email provider.
 pub struct AmazonSesMailer {
@@ -322,8 +323,9 @@ impl AmazonSesMailer {
 }
 
 fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
-    let key = hmac::Key::new(hmac::HMAC_SHA256, key);
-    hmac::sign(&key, data).as_ref().to_vec()
+    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC-SHA256 accepts keys of any size");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
 }
 
 fn hex_sha256(data: &[u8]) -> String {
@@ -560,7 +562,11 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
     Ok(message.into_bytes())
 }
 
-#[async_trait]
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
 impl Mailer for AmazonSesMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let body = self.build_body(email).await?;

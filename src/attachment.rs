@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::error::MailError;
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 fn attachment_io_error(path: impl Into<String>, source: std::io::Error) -> MailError {
     let path = path.into();
     if source.kind() == std::io::ErrorKind::NotFound {
@@ -13,6 +14,13 @@ fn attachment_io_error(path: impl Into<String>, source: std::io::Error) -> MailE
     } else {
         MailError::AttachmentReadError { path, source }
     }
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn path_attachments_unsupported() -> MailError {
+    MailError::UnsupportedFeature(
+        "path-based attachments are not supported on wasm32-unknown-unknown; use Attachment::from_bytes".into(),
+    )
 }
 
 mod shared_bytes_serde {
@@ -118,29 +126,38 @@ impl Attachment {
     ///
     /// Reads the file immediately and guesses the content type from the extension.
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self, MailError> {
-        let path = path.as_ref();
-        let filename = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("attachment")
-            .to_string();
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        {
+            let _ = path;
+            Err(path_attachments_unsupported())
+        }
 
-        let data = std::fs::read(path)
-            .map_err(|source| attachment_io_error(path.display().to_string(), source))?;
+        #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+        {
+            let path = path.as_ref();
+            let filename = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("attachment")
+                .to_string();
 
-        let content_type = mime_guess::from_path(path)
-            .first_or_octet_stream()
-            .to_string();
+            let data = std::fs::read(path)
+                .map_err(|source| attachment_io_error(path.display().to_string(), source))?;
 
-        Ok(Self {
-            filename,
-            content_type,
-            data: Arc::from(data),
-            path: None, // Data is already loaded
-            disposition: AttachmentType::Attachment,
-            content_id: None,
-            headers: Vec::new(),
-        })
+            let content_type = mime_guess::from_path(path)
+                .first_or_octet_stream()
+                .to_string();
+
+            Ok(Self {
+                filename,
+                content_type,
+                data: Arc::from(data),
+                path: None, // Data is already loaded
+                disposition: AttachmentType::Attachment,
+                content_id: None,
+                headers: Vec::new(),
+            })
+        }
     }
 
     /// Create a new attachment from a file path (lazy loading).
@@ -150,36 +167,45 @@ impl Attachment {
     ///
     /// The file will be read when `get_data()` is called.
     pub fn from_path_lazy(path: impl AsRef<Path>) -> Result<Self, MailError> {
-        let path_ref = path.as_ref();
-
-        // Validate path exists
-        if !path_ref.exists() {
-            return Err(MailError::AttachmentFileNotFound(
-                path_ref.display().to_string(),
-            ));
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        {
+            let _ = path;
+            Err(path_attachments_unsupported())
         }
 
-        let filename = path_ref
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("attachment")
-            .to_string();
+        #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+        {
+            let path_ref = path.as_ref();
 
-        let content_type = mime_guess::from_path(path_ref)
-            .first_or_octet_stream()
-            .to_string();
+            // Validate path exists
+            if !path_ref.exists() {
+                return Err(MailError::AttachmentFileNotFound(
+                    path_ref.display().to_string(),
+                ));
+            }
 
-        let path_string = path_ref.to_string_lossy().to_string();
+            let filename = path_ref
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("attachment")
+                .to_string();
 
-        Ok(Self {
-            filename,
-            content_type,
-            data: Arc::from(Vec::new()), // Empty - will be loaded lazily
-            path: Some(path_string),
-            disposition: AttachmentType::Attachment,
-            content_id: None,
-            headers: Vec::new(),
-        })
+            let content_type = mime_guess::from_path(path_ref)
+                .first_or_octet_stream()
+                .to_string();
+
+            let path_string = path_ref.to_string_lossy().to_string();
+
+            Ok(Self {
+                filename,
+                content_type,
+                data: Arc::from(Vec::new()), // Empty - will be loaded lazily
+                path: Some(path_string),
+                disposition: AttachmentType::Attachment,
+                content_id: None,
+                headers: Vec::new(),
+            })
+        }
     }
 
     /// Set the content type explicitly.
@@ -259,8 +285,7 @@ impl Attachment {
     /// - `AttachmentMissingContent` - No data and no path provided
     pub fn get_data(&self) -> Result<Vec<u8>, MailError> {
         if let Some(ref path) = self.path {
-            // Lazy load from path
-            std::fs::read(path).map_err(|source| attachment_io_error(path.clone(), source))
+            read_attachment_path(path)
         } else if self.data.is_empty() && self.path.is_none() {
             Err(MailError::AttachmentMissingContent(self.filename.clone()))
         } else {
@@ -272,10 +297,7 @@ impl Attachment {
     #[cfg(feature = "_async_attachment_io")]
     pub(crate) async fn get_data_async(&self) -> Result<Vec<u8>, MailError> {
         if let Some(ref path) = self.path {
-            let path = path.clone();
-            tokio::fs::read(&path)
-                .await
-                .map_err(|source| attachment_io_error(path, source))
+            read_attachment_path_async(path).await
         } else if self.data.is_empty() && self.path.is_none() {
             Err(MailError::AttachmentMissingContent(self.filename.clone()))
         } else {
@@ -311,9 +333,7 @@ impl Attachment {
     /// Get the accurate size, loading from path if necessary.
     pub fn get_size(&self) -> Result<usize, MailError> {
         if let Some(ref path) = self.path {
-            let metadata = std::fs::metadata(path)
-                .map_err(|source| attachment_io_error(path.clone(), source))?;
-            Ok(metadata.len() as usize)
+            attachment_path_size(path)
         } else {
             Ok(self.data.len())
         }
@@ -328,6 +348,47 @@ impl Attachment {
     pub fn is_inline(&self) -> bool {
         self.disposition == AttachmentType::Inline
     }
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+fn read_attachment_path(path: &str) -> Result<Vec<u8>, MailError> {
+    std::fs::read(path).map_err(|source| attachment_io_error(path.to_string(), source))
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn read_attachment_path(_path: &str) -> Result<Vec<u8>, MailError> {
+    Err(path_attachments_unsupported())
+}
+
+#[cfg(all(
+    feature = "_async_attachment_io",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
+async fn read_attachment_path_async(path: &str) -> Result<Vec<u8>, MailError> {
+    tokio::fs::read(path)
+        .await
+        .map_err(|source| attachment_io_error(path.to_string(), source))
+}
+
+#[cfg(all(
+    feature = "_async_attachment_io",
+    target_family = "wasm",
+    target_os = "unknown"
+))]
+async fn read_attachment_path_async(_path: &str) -> Result<Vec<u8>, MailError> {
+    Err(path_attachments_unsupported())
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+fn attachment_path_size(path: &str) -> Result<usize, MailError> {
+    let metadata =
+        std::fs::metadata(path).map_err(|source| attachment_io_error(path.to_string(), source))?;
+    Ok(metadata.len() as usize)
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn attachment_path_size(_path: &str) -> Result<usize, MailError> {
+    Err(path_attachments_unsupported())
 }
 
 #[cfg(test)]
@@ -376,7 +437,10 @@ mod tests {
         assert_eq!(attachment.base64_data().unwrap(), "SGVsbG8=");
     }
 
-    #[cfg(feature = "_async_attachment_io")]
+    #[cfg(all(
+        feature = "_async_attachment_io",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     #[tokio::test]
     async fn test_base64_data_async_reads_lazy_file() {
         let path = std::env::temp_dir().join(format!(

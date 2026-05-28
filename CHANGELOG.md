@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reported in [#3](https://github.com/jeffhuen/missive/issues/3) and porting
   the intent of [#4](https://github.com/jeffhuen/missive/pull/4). Thanks
   [@emmiegit](https://github.com/emmiegit).
+- Added `wasm32-unknown-unknown` compile support for core, logger, local, and
+  HTTP JSON providers, addressing [#2](https://github.com/jeffhuen/missive/issues/2).
 
 ### Changed
 
@@ -57,12 +59,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `full` feature documentation now matches the actual feature bundle.
 - Mailjet provider options now include `track_opens`, `track_clicks`, and
   `url_tags`, matching the corresponding Swoosh Mailjet adapter options.
+- WASM builds now use target-specific dependency features, `web-time::Instant`,
+  `uuid/js`, `#[async_trait(?Send)]`, thread-local global mailer storage, and
+  pure-Rust Amazon SES HMAC signing.
 
 ### Fixed
 
 - Fixed lazy attachment handling across providers so path-backed attachments are
   read during delivery and missing files fail the send.
 - Fixed current stable clippy failure in Amazon SES header sorting.
+- Fixed WASM compile blockers from `uuid` randomness, Tokio filesystem features,
+  native reqwest features, path-backed attachment I/O, JMAP's native cache lock,
+  and native-only provider modules.
 
 ### Migration Guide
 

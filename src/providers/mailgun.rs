@@ -250,7 +250,11 @@ fn encode_variable(value: &Value) -> String {
     }
 }
 
-#[async_trait]
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
 impl Mailer for MailgunMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let form = self.build_form(email).await?;

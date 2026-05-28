@@ -23,6 +23,20 @@ use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+#[doc(hidden)]
+pub trait InterceptorThreadSafety: Send + Sync {}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+impl<T: Send + Sync> InterceptorThreadSafety for T {}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+#[doc(hidden)]
+pub trait InterceptorThreadSafety {}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+impl<T> InterceptorThreadSafety for T {}
+
 /// A trait for intercepting and transforming emails before delivery.
 ///
 /// Interceptors can modify the email or block it entirely by returning an error.
@@ -46,7 +60,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 ///     }
 /// }
 /// ```
-pub trait Interceptor: Send + Sync {
+pub trait Interceptor: InterceptorThreadSafety {
     /// Transform an email before delivery.
     ///
     /// Return `Ok(email)` to continue with the (possibly modified) email.
@@ -57,7 +71,7 @@ pub trait Interceptor: Send + Sync {
 /// Blanket implementation for closures.
 impl<F> Interceptor for F
 where
-    F: Fn(Email) -> Result<Email, MailError> + Send + Sync,
+    F: Fn(Email) -> Result<Email, MailError> + InterceptorThreadSafety,
 {
     fn intercept(&self, email: Email) -> Result<Email, MailError> {
         (self)(email)
@@ -89,7 +103,11 @@ impl<M, I> WithInterceptor<M, I> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
 impl<M, I> Mailer for WithInterceptor<M, I>
 where
     M: Mailer,

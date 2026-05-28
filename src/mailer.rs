@@ -48,6 +48,20 @@ use crate::address::Address;
 use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+#[doc(hidden)]
+pub trait MailerThreadSafety: Send + Sync {}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+impl<T: Send + Sync> MailerThreadSafety for T {}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+#[doc(hidden)]
+pub trait MailerThreadSafety {}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+impl<T> MailerThreadSafety for T {}
+
 /// Result of a successful email delivery.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeliveryResult {
@@ -97,8 +111,12 @@ impl DeliveryResult {
 /// let result = mailer.deliver(&email).await?;
 /// println!("Sent with ID: {}", result.message_id);
 /// ```
-#[async_trait]
-pub trait Mailer: Send + Sync {
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
+pub trait Mailer: MailerThreadSafety {
     /// Apply provider-specific validation and convert an email into a prepared
     /// message.
     ///
@@ -198,7 +216,11 @@ pub trait Mailer: Send + Sync {
     }
 }
 
-#[async_trait]
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
 impl<T: Mailer + ?Sized> Mailer for &T {
     fn prepare_email(
         &self,
@@ -240,7 +262,11 @@ impl<T: Mailer + ?Sized> Mailer for &T {
     }
 }
 
-#[async_trait]
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
 impl<T: Mailer + ?Sized> Mailer for Arc<T> {
     fn prepare_email(
         &self,

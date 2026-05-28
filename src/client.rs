@@ -1,6 +1,9 @@
 //! Instance-owned email delivery client.
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 use std::time::Instant;
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+use web_time::Instant;
 
 use crate::address::{Address, ToAddress};
 use crate::email::{Email, PreparedEmail};

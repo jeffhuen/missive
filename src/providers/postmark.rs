@@ -276,7 +276,11 @@ impl PostmarkMailer {
     }
 }
 
-#[async_trait]
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
 impl Mailer for PostmarkMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let request = self.build_request(email).await?;

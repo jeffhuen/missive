@@ -111,6 +111,23 @@
 //!
 //! Install a recorder (e.g., `metrics-exporter-prometheus`) in your app to collect them.
 
+#[cfg(all(
+    target_family = "wasm",
+    target_os = "unknown",
+    any(
+        feature = "smtp",
+        feature = "gmail",
+        feature = "protonbridge",
+        feature = "mailgun",
+        feature = "preview",
+        feature = "preview-axum",
+        feature = "preview-actix"
+    )
+))]
+compile_error!(
+    "missive features smtp, gmail, protonbridge, mailgun, preview, preview-axum, and preview-actix are native-only on wasm32-unknown-unknown. Use HTTP JSON providers such as resend, postmark, sendgrid, brevo, amazon_ses, mailtrap, mailjet, socketlabs, or jmap."
+);
+
 /// The version of the missive crate.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -132,9 +149,18 @@ mod storage;
 pub mod testing;
 
 #[cfg(any(
-    feature = "preview",
-    feature = "preview-axum",
-    feature = "preview-actix"
+    all(
+        feature = "preview",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ),
+    all(
+        feature = "preview-axum",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ),
+    all(
+        feature = "preview-actix",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    )
 ))]
 pub mod preview;
 
@@ -143,9 +169,14 @@ mod template;
 #[cfg(feature = "templates")]
 pub use template::{EmailTemplate, EmailTemplateExt};
 
-use parking_lot::RwLock;
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+use std::cell::RefCell;
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 use std::env;
 use std::sync::Arc;
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+use parking_lot::RwLock;
 
 // Re-exports
 pub use address::{Address, ToAddress};
@@ -164,8 +195,14 @@ pub use storage::{MemoryStorage, Storage, StoredEmail};
 // Global Mailer Configuration
 // ============================================================================
 
-/// Global mailer - swappable for testing
+/// Global mailer - swappable for testing.
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 static MAILER: RwLock<Option<Arc<dyn Mailer>>> = RwLock::new(None);
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+thread_local! {
+    static MAILER: RefCell<Option<Arc<dyn Mailer>>> = RefCell::new(None);
+}
 
 /// Get legacy global storage for the LocalMailer.
 ///
@@ -190,6 +227,7 @@ pub fn local_storage() -> Option<Arc<MemoryStorage>> {
 }
 
 /// Get the default from address from environment.
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 pub fn default_from() -> Option<Address> {
     let email = env::var("EMAIL_FROM").ok()?;
     match env::var("EMAIL_FROM_NAME").ok() {
@@ -198,31 +236,95 @@ pub fn default_from() -> Option<Address> {
     }
 }
 
+/// Get the default from address from environment.
+///
+/// `wasm32-unknown-unknown` has no process environment. Use
+/// [`EmailClient::with_default_from`] or [`EmailClient::from_env_with`] to pass
+/// values from JavaScript or worker bindings explicitly.
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+pub fn default_from() -> Option<Address> {
+    None
+}
+
 /// Create mailer from explicit environment configuration.
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
     MailerConfig::from_env()?.into_mailer()
 }
 
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn create_mailer_from_env() -> Result<Arc<dyn Mailer>, MailError> {
+    Err(MailError::UnsupportedFeature(
+        "global environment auto-configuration is not supported on wasm32-unknown-unknown; use EmailClient::new, EmailClient::from_env_with, or configure_arc".into(),
+    ))
+}
+
 /// Get or initialize the global mailer.
 fn get_mailer() -> Result<Arc<dyn Mailer>, MailError> {
-    // Fast path: already configured
-    {
-        let guard = MAILER.read();
-        if let Some(ref mailer) = *guard {
-            return Ok(Arc::clone(mailer));
-        }
+    if let Some(mailer) = configured_mailer() {
+        return Ok(mailer);
     }
 
-    // Slow path: need to configure
     let mailer = create_mailer_from_env()?;
-    let mut guard = MAILER.write();
+    Ok(configure_if_missing(mailer))
+}
 
-    // Double-check after acquiring write lock
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+fn configured_mailer() -> Option<Arc<dyn Mailer>> {
+    let guard = MAILER.read();
+    guard.as_ref().cloned()
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn configured_mailer() -> Option<Arc<dyn Mailer>> {
+    MAILER.with(|slot| slot.borrow().as_ref().cloned())
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+fn configure_if_missing(mailer: Arc<dyn Mailer>) -> Arc<dyn Mailer> {
+    let mut guard = MAILER.write();
     if guard.is_none() {
         *guard = Some(Arc::clone(&mailer));
     }
 
-    Ok(guard.as_ref().unwrap().clone())
+    guard.as_ref().unwrap().clone()
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn configure_if_missing(mailer: Arc<dyn Mailer>) -> Arc<dyn Mailer> {
+    MAILER.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(Arc::clone(&mailer));
+        }
+        slot.as_ref().unwrap().clone()
+    })
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+fn set_configured_mailer(mailer: Arc<dyn Mailer>) {
+    let mut guard = MAILER.write();
+    *guard = Some(mailer);
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn set_configured_mailer(mailer: Arc<dyn Mailer>) {
+    MAILER.with(|slot| {
+        *slot.borrow_mut() = Some(mailer);
+    });
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+fn clear_configured_mailer() {
+    let mut guard = MAILER.write();
+    *guard = None;
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn clear_configured_mailer() {
+    MAILER.with(|slot| {
+        *slot.borrow_mut() = None;
+    });
 }
 
 /// Check if email is configured (env vars are set and feature is enabled).
@@ -329,28 +431,24 @@ pub async fn deliver_many(emails: &[Email]) -> Result<Vec<DeliveryResult>, MailE
 /// configure(LocalMailer::new());
 /// ```
 pub fn configure<M: Mailer + 'static>(mailer: M) {
-    let mut guard = MAILER.write();
-    *guard = Some(Arc::new(mailer));
+    set_configured_mailer(Arc::new(mailer));
 }
 
 /// Configure with an Arc'd mailer.
 pub fn configure_arc(mailer: Arc<dyn Mailer>) {
-    let mut guard = MAILER.write();
-    *guard = Some(mailer);
+    set_configured_mailer(mailer);
 }
 
 /// Reset the global mailer (useful for tests).
 ///
 /// After calling this, the next `deliver()` will re-initialize from env vars.
 pub fn reset() {
-    let mut guard = MAILER.write();
-    *guard = None;
+    clear_configured_mailer();
 }
 
 /// Get a reference to the configured mailer (if initialized).
 pub fn mailer() -> Option<Arc<dyn Mailer>> {
-    let guard = MAILER.read();
-    guard.as_ref().cloned()
+    configured_mailer()
 }
 
 /// Prelude module for convenient imports.

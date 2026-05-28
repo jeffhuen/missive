@@ -179,6 +179,59 @@ missive = { version = "0.7.0", features = ["full"] }
 The `full` bundle does not include `metrics`, the standalone `preview` server,
 or `preview-actix`; enable those features explicitly when you need them.
 
+### WebAssembly
+
+Missive supports `wasm32-unknown-unknown` for browser, worker, and edge
+environments when you enable wasm-compatible providers explicitly:
+
+```toml
+[dependencies]
+missive = { version = "0.7.0", default-features = false, features = ["resend"] }
+```
+
+WASM-compatible providers: `resend`, `unsent`, `postmark`, `sendgrid`,
+`brevo`, `amazon_ses`, `mailtrap`, `mailjet`, `socketlabs`, `jmap`, `local`,
+and the always-available logger provider.
+
+Native-only features on `wasm32-unknown-unknown`: `smtp`, `gmail`,
+`protonbridge`, `mailgun`, `preview`, `preview-axum`, and `preview-actix`.
+The `dev` and `full` bundles are native-only because they include native-only
+features.
+
+Use explicit configuration in WASM. There is no process environment, so
+`EmailClient::from_env()` and the legacy global auto-configuration path return
+an unsupported-feature error. Build the provider directly:
+
+```rust
+use missive::{Email, EmailClient};
+use missive::providers::ResendMailer;
+
+let client = EmailClient::new(ResendMailer::new(resend_api_key))
+    .with_default_from("noreply@example.com");
+
+client.deliver(
+    Email::new()
+        .to("user@example.com")
+        .subject("Welcome")
+        .text_body("Hello from WASM")
+).await?;
+```
+
+Or pass worker/browser bindings through the testable config path:
+
+```rust
+let client = EmailClient::from_env_with(|key| match key {
+    "EMAIL_PROVIDER" => Some("resend".to_string()),
+    "RESEND_API_KEY" => Some(resend_api_key.clone()),
+    "EMAIL_FROM" => Some("noreply@example.com".to_string()),
+    _ => None,
+})?;
+```
+
+Attachments from bytes work in WASM. Path-based attachment APIs return
+`MailError::UnsupportedFeature` because `wasm32-unknown-unknown` has no
+portable filesystem.
+
 ### Available Features
 
 | Feature | Description |
@@ -376,6 +429,9 @@ let email = Email::new()
 ```
 
 ### From File
+
+Path-based attachments are native-only. In WASM, use
+`Attachment::from_bytes(...)`.
 
 ```rust
 // Eager loading (reads file immediately)

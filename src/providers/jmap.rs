@@ -85,7 +85,7 @@ pub struct JmapMailer {
     auth: JmapAuth,
     client: Client,
     /// Cached session data (API URL, account ID, identity ID)
-    session: parking_lot::RwLock<Option<JmapSession>>,
+    session: JmapSessionCache,
 }
 
 #[derive(Clone)]
@@ -127,24 +127,41 @@ impl JmapMailer {
 
     /// Fetch or return cached JMAP session.
     async fn get_session(&self) -> Result<JmapSession, MailError> {
-        // Check cache first
-        {
-            let guard = self.session.read();
-            if let Some(ref session) = *guard {
-                return Ok(session.clone());
-            }
+        if let Some(session) = self.cached_session() {
+            return Ok(session);
         }
 
         // Fetch session
         let session = self.fetch_session().await?;
-
-        // Cache it
-        {
-            let mut guard = self.session.write();
-            *guard = Some(session.clone());
-        }
+        self.cache_session(session.clone());
 
         Ok(session)
+    }
+
+    #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+    fn cached_session(&self) -> Option<JmapSession> {
+        self.session.read().clone()
+    }
+
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    fn cached_session(&self) -> Option<JmapSession> {
+        self.session
+            .read()
+            .expect("JMAP session cache lock poisoned")
+            .clone()
+    }
+
+    #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+    fn cache_session(&self, session: JmapSession) {
+        *self.session.write() = Some(session);
+    }
+
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    fn cache_session(&self, session: JmapSession) {
+        *self
+            .session
+            .write()
+            .expect("JMAP session cache lock poisoned") = Some(session);
     }
 
     /// Fetch JMAP session from server.
@@ -499,6 +516,22 @@ impl JmapMailer {
     }
 }
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+type JmapSessionCache = parking_lot::RwLock<Option<JmapSession>>;
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+type JmapSessionCache = std::sync::RwLock<Option<JmapSession>>;
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+fn session_cache(session: Option<JmapSession>) -> JmapSessionCache {
+    parking_lot::RwLock::new(session)
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn session_cache(session: Option<JmapSession>) -> JmapSessionCache {
+    std::sync::RwLock::new(session)
+}
+
 /// Builder for JmapMailer.
 pub struct JmapBuilder {
     session_url: String,
@@ -577,12 +610,16 @@ impl JmapBuilder {
                 password: String::new(),
             }),
             client: self.client.unwrap_or_default(),
-            session: parking_lot::RwLock::new(session),
+            session: session_cache(session),
         }
     }
 }
 
-#[async_trait]
+#[cfg_attr(
+    all(target_family = "wasm", target_os = "unknown"),
+    async_trait(?Send)
+)]
+#[cfg_attr(not(all(target_family = "wasm", target_os = "unknown")), async_trait)]
 impl Mailer for JmapMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         // Get session info
