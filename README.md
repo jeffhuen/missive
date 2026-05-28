@@ -48,7 +48,7 @@ Add missive to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-missive = { version = "0.6.2", features = ["resend"] }
+missive = { version = "0.7.0", features = ["resend"] }
 ```
 
 Enable the feature for your email provider. See [Feature Flags](#feature-flags) for all options.
@@ -92,7 +92,7 @@ If you only use one provider, enable just that feature:
 
 ```toml
 [dependencies]
-missive = { version = "0.6.2", features = ["resend"] }
+missive = { version = "0.7.0", features = ["resend"] }
 ```
 
 ```bash
@@ -108,7 +108,7 @@ For runtime flexibility (e.g., different providers per environment), enable mult
 
 ```toml
 [dependencies]
-missive = { version = "0.6.2", features = ["smtp", "resend", "local"] }
+missive = { version = "0.7.0", features = ["smtp", "resend", "local"] }
 ```
 
 Then configure per environment in `.env`:
@@ -153,7 +153,7 @@ Same compiled binary, different behavior per environment.
 This means minimal env setup for simple cases that explicitly call `EmailClient::from_env()`:
 
 ```toml
-missive = { version = "0.6.2", features = ["resend"] }
+missive = { version = "0.7.0", features = ["resend"] }
 ```
 
 ```bash
@@ -170,10 +170,10 @@ Use `EMAIL_PROVIDER` explicitly when:
 
 ```toml
 # Development setup (local + preview UI)
-missive = { version = "0.6.2", features = ["dev"] }
+missive = { version = "0.7.0", features = ["dev"] }
 
 # Broad bundle: all providers + local + templates + Axum preview UI
-missive = { version = "0.6.2", features = ["full"] }
+missive = { version = "0.7.0", features = ["full"] }
 ```
 
 The `full` bundle does not include `metrics`, the standalone `preview` server,
@@ -617,7 +617,7 @@ async fn send_email<M: Mailer>(
 Enable Prometheus-style metrics with `features = ["metrics"]`:
 
 ```toml
-missive = { version = "0.6.2", features = ["resend", "metrics"] }
+missive = { version = "0.7.0", features = ["resend", "metrics"] }
 ```
 
 Missive emits these metrics:

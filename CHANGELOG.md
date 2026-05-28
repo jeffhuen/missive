@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-28
+
+### Breaking Changes
+
+- Made `Email`, `Address`, and `Attachment` fields private. Use builder methods
+  for construction and accessor methods such as `email.to_addresses()`,
+  `email.subject_line()`, `address.email()`, and `attachment.data()` for reads.
+- Changed attachment encoding/read paths to return errors instead of silently
+  substituting empty attachment content. `Attachment::base64_data()` now returns
+  `Result<String, MailError>`, and delivery propagates lazy attachment read
+  failures.
+- Removed process-global local preview storage behavior. `local_storage()` is
+  retained only as a deprecated compatibility facade and returns `None`; create
+  `LocalMailer` explicitly and pass `mailer.storage()` to preview APIs.
+- Changed `MailError` to preserve source errors for HTTP, SMTP, lettre build,
+  template, and attachment I/O failures. Code that required cloning errors
+  should store a string representation or wrap the error at the application
+  boundary.
+
+### Added
+
+- Added `EmailClient<M>` as the primary instance-owned delivery API for
+  dependency injection and application state.
+- Added explicit environment configuration through `EmailClient::from_env()`,
+  `EmailClient::from_env_with(...)`, and `MailerConfig::from_env()`.
+- Added typed Resend provider option helpers through `ResendEmailExt`.
+- Added `PreparedEmail` validation before provider delivery so required sender,
+  recipient, and address checks happen consistently before adapter code runs.
+
+### Changed
+
+- Provider adapters now normalize outbound address domains with IDNA/Punycode
+  and preserve custom headers where supported.
+- Lazy attachment reads in async provider delivery are offloaded through the
+  Tokio-backed attachment I/O path instead of blocking async worker threads.
+- Attachment byte storage is shared for clones, reducing memory amplification
+  when emails with large attachments are cloned.
+- Default delivery telemetry no longer records recipient addresses or subject
+  lines at info level.
+- `full` feature documentation now matches the actual feature bundle.
+
+### Fixed
+
+- Fixed lazy attachment handling across providers so path-backed attachments are
+  read during delivery and missing files fail the send.
+- Fixed current stable clippy failure in Amazon SES header sorting.
+
 ### Migration Guide
 
 - Documented the v0.7 migration path from process-global delivery to explicit
@@ -26,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 
-- **`MailerExt::validate()`** - This method does not handle the `EMAIL_FROM` environment variable fallback, incorrectly rejecting valid emails. Use `Email::is_valid()` for a quick check or rely on `deliver()`/`deliver_with()` validation. Will be removed in 0.7.0. ([#1](https://github.com/jeffhuen/missive/issues/1))
+- **`MailerExt::validate()`** - This method does not handle the `EMAIL_FROM` environment variable fallback, incorrectly rejecting valid emails. Use `Email::is_valid()` for a quick check or rely on `deliver()`/`deliver_with()` validation. It may be removed in a future breaking release. ([#1](https://github.com/jeffhuen/missive/issues/1))
 
 ## [0.6.1] - 2026-01-17
 

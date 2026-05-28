@@ -25,16 +25,16 @@ Choose the integration that fits your setup:
 
 ```toml
 # Standalone server (simplest - no framework required)
-missive = { version = "0.6.2", features = ["preview"] }
+missive = { version = "0.7.0", features = ["preview"] }
 
 # Embed in Axum app
-missive = { version = "0.6.2", features = ["preview-axum"] }
+missive = { version = "0.7.0", features = ["preview-axum"] }
 
 # Embed in Actix app
-missive = { version = "0.6.2", features = ["preview-actix"] }
+missive = { version = "0.7.0", features = ["preview-actix"] }
 
 # Development bundle (local + standalone preview)
-missive = { version = "0.6.2", features = ["dev"] }
+missive = { version = "0.7.0", features = ["dev"] }
 ```
 
 ---

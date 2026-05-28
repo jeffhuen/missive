@@ -8,7 +8,7 @@ Enable the `templates` feature:
 
 ```toml
 [dependencies]
-missive = { version = "0.6.2", features = ["resend", "templates"] }
+missive = { version = "0.7.0", features = ["resend", "templates"] }
 askama = "0.13"
 ```
 
