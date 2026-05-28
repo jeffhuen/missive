@@ -248,7 +248,7 @@ impl AmazonSesMailer {
         }
 
         // Sort headers for canonical request
-        headers.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+        headers.sort_by_key(|(name, _)| name.to_lowercase());
 
         // Build signed headers list
         let signed_headers = headers
