@@ -23,7 +23,7 @@ use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::storage::MemoryStorage;
 
-use super::core::{self, EmailListResponse, PreviewConfig};
+use super::core::{self, AttachmentData, EmailListResponse, PreviewConfig};
 
 // ============================================================================
 // Public API
@@ -86,7 +86,7 @@ impl PreviewServer {
         storage: Arc<MemoryStorage>,
         config: PreviewConfig,
     ) -> io::Result<Self> {
-        let server = Server::http(addr).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let server = Server::http(addr).map_err(io::Error::other)?;
 
         Ok(Self {
             server,
@@ -126,7 +126,7 @@ fn run_server(
     loop {
         let request = match server.recv() {
             Ok(req) => req,
-            Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+            Err(e) => return Err(io::Error::other(e)),
         };
 
         handle_request(request, storage, config);
@@ -228,19 +228,26 @@ fn handle_attachment(
     storage: &Arc<MemoryStorage>,
 ) -> Response<io::Cursor<Vec<u8>>> {
     match core::get_attachment(storage, id, idx) {
-        Some(att) => {
-            let cursor = io::Cursor::new(att.data().to_vec());
-            let content_type =
-                Header::from_bytes("Content-Type", att.mime_type().as_bytes()).unwrap();
+        Some(AttachmentData {
+            data,
+            filename,
+            content_type,
+        }) => {
+            let content_type = Header::from_bytes("Content-Type", content_type.as_bytes())
+                .unwrap_or_else(|_| {
+                    Header::from_bytes("Content-Type", "application/octet-stream")
+                        .expect("static content-type header is valid")
+                });
             let disposition = Header::from_bytes(
                 "Content-Disposition",
-                format!("attachment; filename=\"{}\"", att.filename()).as_bytes(),
-            )
-            .unwrap();
+                format!("attachment; filename=\"{}\"", filename).as_bytes(),
+            );
 
-            Response::from_data(cursor.into_inner())
-                .with_header(content_type)
-                .with_header(disposition)
+            let response = Response::from_data(data).with_header(content_type);
+            match disposition {
+                Ok(disposition) => response.with_header(disposition),
+                Err(_) => response,
+            }
         }
         None => not_found(),
     }
@@ -256,13 +263,15 @@ fn handle_clear(storage: &Arc<MemoryStorage>) -> Response<io::Cursor<Vec<u8>>> {
 // ============================================================================
 
 fn html_response(body: String) -> Response<io::Cursor<Vec<u8>>> {
-    let header = Header::from_bytes("Content-Type", "text/html; charset=utf-8").unwrap();
+    let header = Header::from_bytes("Content-Type", "text/html; charset=utf-8")
+        .expect("static content-type header is valid");
     Response::from_data(body.into_bytes()).with_header(header)
 }
 
 fn json_response<T: serde::Serialize>(data: &T) -> Response<io::Cursor<Vec<u8>>> {
     let body = serde_json::to_vec(data).unwrap_or_default();
-    let header = Header::from_bytes("Content-Type", "application/json").unwrap();
+    let header =
+        Header::from_bytes("Content-Type", "application/json").expect("static header is valid");
     Response::from_data(body).with_header(header)
 }
 

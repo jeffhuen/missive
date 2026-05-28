@@ -38,7 +38,7 @@
 //! ```
 
 use async_trait::async_trait;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
@@ -53,7 +53,17 @@ use crate::storage::{MemoryStorage, Storage, StoredEmail};
 pub struct LocalMailer {
     storage: Arc<MemoryStorage>,
     /// If set, deliver() will return this error (for testing error paths).
-    fail_with: std::sync::RwLock<Option<String>>,
+    fail_with: RwLock<Option<String>>,
+}
+
+fn read_lock<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
+    lock.read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn write_lock<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+    lock.write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 impl LocalMailer {
@@ -61,7 +71,7 @@ impl LocalMailer {
     pub fn new() -> Self {
         Self {
             storage: MemoryStorage::shared(),
-            fail_with: std::sync::RwLock::new(None),
+            fail_with: RwLock::new(None),
         }
     }
 
@@ -71,7 +81,7 @@ impl LocalMailer {
     pub fn with_storage(storage: Arc<MemoryStorage>) -> Self {
         Self {
             storage,
-            fail_with: std::sync::RwLock::new(None),
+            fail_with: RwLock::new(None),
         }
     }
 
@@ -102,12 +112,12 @@ impl LocalMailer {
     /// assert!(result.is_err());
     /// ```
     pub fn set_failure(&self, message: impl Into<String>) {
-        *self.fail_with.write().unwrap() = Some(message.into());
+        *write_lock(&self.fail_with) = Some(message.into());
     }
 
     /// Clear the failure state.
     pub fn clear_failure(&self) {
-        *self.fail_with.write().unwrap() = None;
+        *write_lock(&self.fail_with) = None;
     }
 
     // =========================================================================
@@ -201,7 +211,7 @@ impl Clone for LocalMailer {
     fn clone(&self) -> Self {
         Self {
             storage: Arc::clone(&self.storage),
-            fail_with: std::sync::RwLock::new(self.fail_with.read().unwrap().clone()),
+            fail_with: RwLock::new(read_lock(&self.fail_with).clone()),
         }
     }
 }
@@ -214,7 +224,7 @@ impl Clone for LocalMailer {
 impl Mailer for LocalMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         // Check for configured failure
-        if let Some(ref message) = *self.fail_with.read().unwrap() {
+        if let Some(ref message) = *read_lock(&self.fail_with) {
             return Err(MailError::SendError(message.clone()));
         }
 

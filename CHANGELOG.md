@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   template, and attachment I/O failures. Code that required cloning errors
   should store a string representation or wrap the error at the application
   boundary.
+- Changed `SmtpBuilder::build()` and `ProtonBridgeBuilder::build()` to return
+  `Result<_, MailError>` so invalid relay/TLS setup cannot silently fall back
+  to plaintext SMTP.
+- Marked `MailError`, `MailerConfig`, and SMTP `TlsMode` as non-exhaustive so
+  downstream code keeps wildcard handling for future provider and error cases.
 
 ### Added
 
@@ -65,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WASM builds now use target-specific dependency features, `web-time::Instant`,
   `uuid/js`, `#[async_trait(?Send)]`, thread-local global mailer storage, and
   pure-Rust Amazon SES HMAC signing.
+- Delivery telemetry now instruments async spans without holding an entered span
+  guard across `.await` points.
+- SMTP environment configuration now parses `SMTP_TLS` as `starttls`, `tls`, or
+  `none`; `opportunistic` is rejected because it can hide TLS downgrades.
 
 ### Fixed
 
@@ -76,6 +85,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and native-only provider modules.
 - Tightened native-only WASM feature diagnostics and avoided pulling Tokio into
   supported HTTP-provider WASM builds.
+- Fixed `preview`, `preview-actix`, `dev`, and `--all-features` builds and
+  added CI coverage for those feature combinations.
+- Removed raw email addresses from address-validation warning logs.
+- Hardened Amazon SES raw MIME generation against CR/LF header injection and
+  encoded non-ASCII header values and attachment filenames.
+- Excluded Beads, agent, and GitHub workflow metadata from crates.io packages
+  and added a package assembly check to CI.
 
 ### Migration Guide
 

@@ -51,6 +51,7 @@
 //! | `SMTP_PORT` | SMTP server port (default: 587) |
 //! | `SMTP_USERNAME` | SMTP username |
 //! | `SMTP_PASSWORD` | SMTP password |
+//! | `SMTP_TLS` | SMTP TLS mode: `starttls` (default), `tls`, or `none` |
 //! | `RESEND_API_KEY` | Resend API key |
 //! | `UNSENT_API_KEY` | Unsent API key |
 //! | `POSTMARK_API_KEY` | Postmark API key |
@@ -287,7 +288,7 @@ fn configure_if_missing(mailer: Arc<dyn Mailer>) -> Arc<dyn Mailer> {
         *guard = Some(Arc::clone(&mailer));
     }
 
-    guard.as_ref().unwrap().clone()
+    guard.as_ref().map_or(mailer, Arc::clone)
 }
 
 #[cfg(all(target_family = "wasm", target_os = "unknown"))]
@@ -297,7 +298,7 @@ fn configure_if_missing(mailer: Arc<dyn Mailer>) -> Arc<dyn Mailer> {
         if slot.is_none() {
             *slot = Some(Arc::clone(&mailer));
         }
-        slot.as_ref().unwrap().clone()
+        slot.as_ref().map_or(mailer, Arc::clone)
     })
 }
 

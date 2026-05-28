@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::email::Email;
 
@@ -66,6 +66,16 @@ impl MemoryStorage {
     }
 }
 
+fn read_lock<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
+    lock.read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn write_lock<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+    lock.write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 impl Storage for MemoryStorage {
     fn push(&self, email: Email) -> String {
         let id = uuid::Uuid::new_v4().to_string();
@@ -85,8 +95,8 @@ impl Storage for MemoryStorage {
         };
 
         {
-            let mut emails = self.emails.write().unwrap();
-            let mut order = self.order.write().unwrap();
+            let mut emails = write_lock(&self.emails);
+            let mut order = write_lock(&self.order);
             emails.insert(id.clone(), stored);
             order.push(id.clone());
         }
@@ -95,8 +105,8 @@ impl Storage for MemoryStorage {
     }
 
     fn pop(&self) -> Option<StoredEmail> {
-        let mut emails = self.emails.write().unwrap();
-        let mut order = self.order.write().unwrap();
+        let mut emails = write_lock(&self.emails);
+        let mut order = write_lock(&self.order);
 
         if let Some(id) = order.pop() {
             emails.remove(&id)
@@ -106,13 +116,13 @@ impl Storage for MemoryStorage {
     }
 
     fn get(&self, id: &str) -> Option<StoredEmail> {
-        let emails = self.emails.read().unwrap();
+        let emails = read_lock(&self.emails);
         emails.get(id).cloned()
     }
 
     fn all(&self) -> Vec<StoredEmail> {
-        let emails = self.emails.read().unwrap();
-        let order = self.order.read().unwrap();
+        let emails = read_lock(&self.emails);
+        let order = read_lock(&self.order);
 
         // Return in reverse order (newest first)
         order
@@ -123,8 +133,8 @@ impl Storage for MemoryStorage {
     }
 
     fn delete(&self, id: &str) -> bool {
-        let mut emails = self.emails.write().unwrap();
-        let mut order = self.order.write().unwrap();
+        let mut emails = write_lock(&self.emails);
+        let mut order = write_lock(&self.order);
 
         if emails.remove(id).is_some() {
             order.retain(|x| x != id);
@@ -135,20 +145,20 @@ impl Storage for MemoryStorage {
     }
 
     fn clear(&self) {
-        let mut emails = self.emails.write().unwrap();
-        let mut order = self.order.write().unwrap();
+        let mut emails = write_lock(&self.emails);
+        let mut order = write_lock(&self.order);
         emails.clear();
         order.clear();
     }
 
     fn count(&self) -> usize {
-        let emails = self.emails.read().unwrap();
+        let emails = read_lock(&self.emails);
         emails.len()
     }
 
     fn flush(&self) -> Vec<StoredEmail> {
-        let mut emails = self.emails.write().unwrap();
-        let mut order = self.order.write().unwrap();
+        let mut emails = write_lock(&self.emails);
+        let mut order = write_lock(&self.order);
 
         // Get all in order (newest first)
         let result: Vec<StoredEmail> = order

@@ -33,6 +33,7 @@ use crate::providers;
 
 /// Typed configuration for building a mailer from environment-like input.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum MailerConfig {
     #[cfg(all(
         feature = "smtp",
@@ -325,7 +326,7 @@ impl MailerConfig {
                 feature = "smtp",
                 not(all(target_family = "wasm", target_os = "unknown"))
             ))]
-            Self::Smtp(config) => Ok(Arc::new(config.into_mailer())),
+            Self::Smtp(config) => Ok(Arc::new(config.into_mailer()?)),
             #[cfg(feature = "resend")]
             Self::Resend(config) => Ok(Arc::new(providers::ResendMailer::new(config.api_key))),
             #[cfg(feature = "unsent")]
@@ -368,7 +369,7 @@ impl MailerConfig {
                 feature = "protonbridge",
                 not(all(target_family = "wasm", target_os = "unknown"))
             ))]
-            Self::ProtonBridge(config) => Ok(Arc::new(config.into_mailer())),
+            Self::ProtonBridge(config) => Ok(Arc::new(config.into_mailer()?)),
             #[cfg(feature = "jmap")]
             Self::Jmap(config) => Ok(Arc::new(config.into_mailer())),
             #[cfg(feature = "local")]
@@ -455,6 +456,7 @@ pub struct SmtpConfig {
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
+    pub tls: providers::TlsMode,
 }
 
 #[cfg(all(
@@ -468,6 +470,7 @@ impl SmtpConfig {
             port,
             username: None,
             password: None,
+            tls: providers::TlsMode::StartTls,
         })
     }
 
@@ -481,11 +484,13 @@ impl SmtpConfig {
         )?;
         config.username = optional_var(get, "SMTP_USERNAME").filter(|value| !value.is_empty());
         config.password = optional_var(get, "SMTP_PASSWORD").filter(|value| !value.is_empty());
+        config.tls = optional_smtp_tls(get, "SMTP_TLS")?;
         Ok(config)
     }
 
-    fn into_mailer(self) -> providers::SmtpMailer {
+    fn into_mailer(self) -> Result<providers::SmtpMailer, MailError> {
         let mut builder = providers::SmtpMailer::new(&self.host, self.port);
+        builder = builder.tls(self.tls);
         if let Some(username) = self.username {
             let password = self.password.unwrap_or_default();
             builder = builder.credentials(&username, &password);
@@ -651,7 +656,7 @@ impl ProtonBridgeConfig {
         })
     }
 
-    fn into_mailer(self) -> providers::ProtonBridgeMailer {
+    fn into_mailer(self) -> Result<providers::ProtonBridgeMailer, MailError> {
         let mut builder = providers::ProtonBridgeMailer::new(&self.username, &self.password);
         if let Some(host) = self.host {
             builder = builder.host(&host);
@@ -873,6 +878,32 @@ where
     match optional_var(get, name) {
         Some(value) => parse_port(name, &value),
         None => Ok(default),
+    }
+}
+
+#[cfg(all(
+    feature = "smtp",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
+fn optional_smtp_tls<F>(get: &mut F, name: &'static str) -> Result<providers::TlsMode, MailError>
+where
+    F: FnMut(&str) -> Option<String> + ?Sized,
+{
+    match optional_var(get, name).map(|value| value.to_ascii_lowercase()) {
+        None => Ok(providers::TlsMode::StartTls),
+        Some(value) if matches!(value.as_str(), "starttls" | "required" | "true") => {
+            Ok(providers::TlsMode::StartTls)
+        }
+        Some(value) if matches!(value.as_str(), "tls" | "implicit") => Ok(providers::TlsMode::Tls),
+        Some(value) if matches!(value.as_str(), "none" | "disabled" | "false") => {
+            Ok(providers::TlsMode::None)
+        }
+        Some(value) if value == "opportunistic" => Err(MailError::Configuration(
+            "SMTP_TLS=opportunistic is not supported because it can silently downgrade TLS; use starttls, tls, or none".into(),
+        )),
+        Some(value) => Err(MailError::Configuration(format!(
+            "{name} must be one of starttls, tls, none, required, true, false; got {value}"
+        ))),
     }
 }
 

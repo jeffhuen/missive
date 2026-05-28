@@ -31,11 +31,13 @@
 //! use missive::providers::ProtonBridgeMailer;
 //!
 //! // Using Bridge credentials from the desktop app
-//! let mailer = ProtonBridgeMailer::new("your-bridge-username", "your-bridge-password");
+//! let mailer = ProtonBridgeMailer::new("your-bridge-username", "your-bridge-password")
+//!     .build()?;
 //!
 //! // Custom port (default is 1025)
 //! let mailer = ProtonBridgeMailer::new("username", "password")
-//!     .port(1026);
+//!     .port(1026)
+//!     .build()?;
 //! ```
 //!
 //! # Environment Variables
@@ -113,13 +115,13 @@ impl ProtonBridgeBuilder {
     }
 
     /// Build the ProtonBridgeMailer.
-    pub fn build(self) -> ProtonBridgeMailer {
+    pub fn build(self) -> Result<ProtonBridgeMailer, MailError> {
         let inner = SmtpMailer::new(&self.host, self.port)
             .no_tls()
             .credentials(&self.username, &self.password)
-            .build();
+            .build()?;
 
-        ProtonBridgeMailer { inner }
+        Ok(ProtonBridgeMailer { inner })
     }
 }
 

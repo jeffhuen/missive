@@ -32,7 +32,7 @@ mod smtp;
     feature = "smtp",
     not(all(target_family = "wasm", target_os = "unknown"))
 ))]
-pub use smtp::SmtpMailer;
+pub use smtp::{SmtpMailer, TlsMode};
 
 #[cfg(feature = "resend")]
 mod resend;

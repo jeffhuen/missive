@@ -7,6 +7,16 @@ license = "MIT"
 repository = "https://github.com/jeffhuen/missive"
 keywords = ["email", "smtp", "jmap", "ses", "resend"]
 categories = ["email", "web-programming"]
+exclude = [
+  ".antigravitycli/**",
+  ".beads/**",
+  ".claude/**",
+  ".agents/**",
+  ".github/**",
+  "AGENTS.md",
+  "CLAUDE.md",
+  "graphify-out/**",
+]
 
 [features]
 default = []

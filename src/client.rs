@@ -9,6 +9,7 @@ use crate::address::{Address, ToAddress};
 use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
+use tracing::Instrument;
 
 /// Instance-owned email client.
 ///
@@ -76,10 +77,13 @@ impl<M: Mailer> EmailClient<M> {
         let provider = self.mailer.provider_name();
         let count = emails.len();
         let span = tracing::info_span!("missive.deliver_many", provider = provider, count = count,);
-        let _guard = span.enter();
 
         let start = Instant::now();
-        let result = self.mailer.deliver_many_prepared(&emails).await;
+        let result = self
+            .mailer
+            .deliver_many_prepared(&emails)
+            .instrument(span.clone())
+            .await;
         let duration = start.elapsed();
         let status = if result.is_ok() { "success" } else { "error" };
 
@@ -96,6 +100,7 @@ impl<M: Mailer> EmailClient<M> {
 
         match &result {
             Ok(_) => tracing::info!(
+                parent: &span,
                 provider = provider,
                 status = status,
                 count = count,
@@ -103,6 +108,7 @@ impl<M: Mailer> EmailClient<M> {
                 "Emails delivered",
             ),
             Err(e) => tracing::error!(
+                parent: &span,
                 provider = provider,
                 status = status,
                 count = count,
@@ -132,12 +138,14 @@ async fn deliver_prepared<M: Mailer>(
         status = tracing::field::Empty,
         duration_ms = tracing::field::Empty,
     );
-    let _guard = span.enter();
 
-    tracing::debug!("Delivering email");
+    tracing::debug!(parent: &span, "Delivering email");
 
     let start = Instant::now();
-    let result = mailer.deliver_prepared(email).await;
+    let result = mailer
+        .deliver_prepared(email)
+        .instrument(span.clone())
+        .await;
     let duration = start.elapsed();
     let duration_ms = duration.as_millis() as u64;
     let status = if result.is_ok() { "success" } else { "error" };
@@ -155,6 +163,7 @@ async fn deliver_prepared<M: Mailer>(
     match &result {
         Ok(r) => {
             tracing::info!(
+                parent: &span,
                 provider = provider,
                 status = status,
                 recipient_count = recipient_count,
@@ -162,10 +171,11 @@ async fn deliver_prepared<M: Mailer>(
                 duration_ms = duration_ms,
                 "Email delivered",
             );
-            tracing::debug!(message_id = %r.message_id, "Provider message id");
+            tracing::debug!(parent: &span, message_id = %r.message_id, "Provider message id");
         }
         Err(e) => {
             tracing::error!(
+                parent: &span,
                 provider = provider,
                 status = status,
                 recipient_count = recipient_count,
@@ -174,7 +184,7 @@ async fn deliver_prepared<M: Mailer>(
                 error_kind = e.kind(),
                 "Email delivery failed",
             );
-            tracing::debug!(error = %e, "Email delivery error details");
+            tracing::debug!(parent: &span, error = %e, "Email delivery error details");
         }
     }
 

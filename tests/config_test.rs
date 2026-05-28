@@ -1,5 +1,6 @@
 #![cfg(feature = "full")]
 
+use missive::providers::TlsMode;
 use missive::{EmailClient, MailerConfig, ResendConfig};
 use std::collections::HashMap;
 
@@ -74,6 +75,34 @@ fn mailer_config_from_env_requires_mailjet_secret_key() {
     .unwrap_err();
 
     assert!(error.to_string().contains("MAILJET_SECRET_KEY"));
+}
+
+#[test]
+fn smtp_config_from_env_parses_tls_mode() {
+    let config = MailerConfig::from_env_with(env(&[
+        ("EMAIL_PROVIDER", "smtp"),
+        ("SMTP_HOST", "smtp.example.com"),
+        ("SMTP_TLS", "none"),
+    ]))
+    .unwrap();
+
+    if let MailerConfig::Smtp(config) = config {
+        assert_eq!(config.tls, TlsMode::None);
+    } else {
+        panic!("expected smtp config");
+    }
+}
+
+#[test]
+fn smtp_config_from_env_rejects_opportunistic_tls() {
+    let error = MailerConfig::from_env_with(env(&[
+        ("EMAIL_PROVIDER", "smtp"),
+        ("SMTP_HOST", "smtp.example.com"),
+        ("SMTP_TLS", "opportunistic"),
+    ]))
+    .unwrap_err();
+
+    assert!(error.to_string().contains("silently downgrade TLS"));
 }
 
 #[test]

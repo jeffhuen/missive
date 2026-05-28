@@ -58,6 +58,7 @@ use hmac::{Hmac, Mac};
 use reqwest::Client;
 use sha2::{Digest, Sha256};
 
+use crate::address::{encode_rfc2047_phrase, validate_header_component};
 use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
@@ -342,6 +343,102 @@ fn amz_datetime(dt: &DateTime<Utc>) -> String {
     dt.format("%Y%m%dT%H%M%SZ").to_string()
 }
 
+fn encoded_header_value(field: &str, value: &str) -> Result<String, MailError> {
+    validate_header_component(field, value)?;
+
+    if value.is_ascii() {
+        Ok(value.to_string())
+    } else {
+        Ok(encode_rfc2047_phrase(value))
+    }
+}
+
+fn validate_header_name(name: &str) -> Result<(), MailError> {
+    if name.is_empty() || !name.bytes().all(|b| matches!(b, b'!'..=b'~') && b != b':') {
+        return Err(MailError::BuildError(format!(
+            "Invalid header name: {name}"
+        )));
+    }
+
+    Ok(())
+}
+
+fn push_header(message: &mut String, name: &str, value: &str) -> Result<(), MailError> {
+    validate_header_name(name)?;
+    let value = encoded_header_value(name, value)?;
+    message.push_str(&format!("{name}: {value}\r\n"));
+    Ok(())
+}
+
+fn quoted_parameter(value: &str) -> Result<String, MailError> {
+    validate_header_component("MIME parameter", value)?;
+    Ok(value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+fn content_disposition(kind: &str, filename: &str) -> Result<String, MailError> {
+    validate_header_component("attachment filename", filename)?;
+
+    if filename.is_ascii() {
+        Ok(format!(
+            "Content-Disposition: {kind}; filename=\"{}\"\r\n",
+            quoted_parameter(filename)?
+        ))
+    } else {
+        Ok(format!(
+            "Content-Disposition: {kind}; filename*=UTF-8''{}\r\n",
+            urlencoding::encode(filename)
+        ))
+    }
+}
+
+fn content_id_header(content_id: &str) -> Result<String, MailError> {
+    validate_header_component("attachment content ID", content_id)?;
+    if content_id.contains('<') || content_id.contains('>') {
+        return Err(MailError::BuildError(
+            "attachment content ID must not contain angle brackets".into(),
+        ));
+    }
+
+    Ok(format!("Content-ID: <{content_id}>\r\n"))
+}
+
+fn push_wrapped_base64(message: &mut String, encoded: &str) {
+    if encoded.is_empty() {
+        message.push_str("\r\n");
+        return;
+    }
+
+    for chunk in encoded.as_bytes().chunks(76) {
+        for byte in chunk {
+            message.push(char::from(*byte));
+        }
+        message.push_str("\r\n");
+    }
+}
+
+async fn push_inline_attachments(
+    message: &mut String,
+    related_boundary: &str,
+    email: &Email,
+) -> Result<(), MailError> {
+    for attachment in email.attachments.iter().filter(|a| a.is_inline()) {
+        message.push_str(&format!("--{}\r\n", related_boundary));
+        validate_header_component("attachment content type", &attachment.content_type)?;
+        message.push_str(&format!("Content-Type: {}\r\n", attachment.content_type));
+        message.push_str("Content-Transfer-Encoding: base64\r\n");
+        message.push_str(&content_disposition("inline", &attachment.filename)?);
+        if let Some(ref cid) = attachment.content_id {
+            message.push_str(&content_id_header(cid)?);
+        }
+        message.push_str("\r\n");
+        push_wrapped_base64(message, &attachment.base64_data_async().await?);
+    }
+
+    message.push_str(&format!("--{}--\r\n", related_boundary));
+
+    Ok(())
+}
+
 /// Build a MIME message from an Email.
 async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
     let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
@@ -391,54 +488,59 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
         ));
     }
 
-    message.push_str(&format!("Subject: {}\r\n", email.subject));
+    push_header(&mut message, "Subject", &email.subject)?;
     message.push_str("MIME-Version: 1.0\r\n");
 
     // Custom headers
     for (name, value) in &email.headers {
-        message.push_str(&format!("{}: {}\r\n", name, value));
+        push_header(&mut message, name, value)?;
     }
 
     // Determine content structure
-    let has_text = email.text_body.is_some();
-    let has_html = email.html_body.is_some();
+    let text_body = email.text_body.as_deref();
+    let html_body = email.html_body.as_deref();
     let has_attachments = !email.attachments.is_empty();
     let has_inline = email.attachments.iter().any(|a| a.is_inline());
 
     if !has_attachments {
         // Simple case: no attachments
-        if has_text && has_html {
-            // Multipart/alternative
-            message.push_str(&format!(
-                "Content-Type: multipart/alternative; boundary=\"{}\"\r\n\r\n",
-                boundary
-            ));
+        match (text_body, html_body) {
+            (Some(text), Some(html)) => {
+                // Multipart/alternative
+                message.push_str(&format!(
+                    "Content-Type: multipart/alternative; boundary=\"{}\"\r\n\r\n",
+                    boundary
+                ));
 
-            // Text part
-            message.push_str(&format!("--{}\r\n", boundary));
-            message.push_str("Content-Type: text/plain; charset=utf-8\r\n");
-            message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
-            message.push_str(email.text_body.as_ref().unwrap());
-            message.push_str("\r\n");
+                // Text part
+                message.push_str(&format!("--{}\r\n", boundary));
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+                message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
+                message.push_str(text);
+                message.push_str("\r\n");
 
-            // HTML part
-            message.push_str(&format!("--{}\r\n", boundary));
-            message.push_str("Content-Type: text/html; charset=utf-8\r\n");
-            message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
-            message.push_str(email.html_body.as_ref().unwrap());
-            message.push_str("\r\n");
+                // HTML part
+                message.push_str(&format!("--{}\r\n", boundary));
+                message.push_str("Content-Type: text/html; charset=utf-8\r\n");
+                message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
+                message.push_str(html);
+                message.push_str("\r\n");
 
-            message.push_str(&format!("--{}--\r\n", boundary));
-        } else if has_html {
-            message.push_str("Content-Type: text/html; charset=utf-8\r\n");
-            message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
-            message.push_str(email.html_body.as_ref().unwrap());
-        } else if has_text {
-            message.push_str("Content-Type: text/plain; charset=utf-8\r\n");
-            message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
-            message.push_str(email.text_body.as_ref().unwrap());
-        } else {
-            message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+                message.push_str(&format!("--{}--\r\n", boundary));
+            }
+            (None, Some(html)) => {
+                message.push_str("Content-Type: text/html; charset=utf-8\r\n");
+                message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
+                message.push_str(html);
+            }
+            (Some(text), None) => {
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+                message.push_str("Content-Transfer-Encoding: quoted-printable\r\n\r\n");
+                message.push_str(text);
+            }
+            (None, None) => {
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+            }
         }
     } else {
         // Complex case: with attachments
@@ -463,16 +565,16 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
         // Body part
         message.push_str(&format!("--{}\r\n", mixed_boundary));
 
-        if has_inline && has_html {
-            // Use multipart/related for inline attachments
-            message.push_str(&format!(
-                "Content-Type: multipart/related; boundary=\"{}\"\r\n\r\n",
-                related_boundary
-            ));
+        match (text_body, html_body) {
+            (Some(text), Some(html)) if has_inline => {
+                // Use multipart/related for inline attachments
+                message.push_str(&format!(
+                    "Content-Type: multipart/related; boundary=\"{}\"\r\n\r\n",
+                    related_boundary
+                ));
 
-            message.push_str(&format!("--{}\r\n", related_boundary));
+                message.push_str(&format!("--{}\r\n", related_boundary));
 
-            if has_text {
                 // Multipart/alternative inside related
                 message.push_str(&format!(
                     "Content-Type: multipart/alternative; boundary=\"{}\"\r\n\r\n",
@@ -481,79 +583,73 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
 
                 message.push_str(&format!("--{}\r\n", alt_boundary));
                 message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
-                message.push_str(email.text_body.as_ref().unwrap());
+                message.push_str(text);
                 message.push_str("\r\n");
 
                 message.push_str(&format!("--{}\r\n", alt_boundary));
                 message.push_str("Content-Type: text/html; charset=utf-8\r\n\r\n");
-                message.push_str(email.html_body.as_ref().unwrap());
+                message.push_str(html);
                 message.push_str("\r\n");
 
                 message.push_str(&format!("--{}--\r\n", alt_boundary));
-            } else {
-                message.push_str("Content-Type: text/html; charset=utf-8\r\n\r\n");
-                message.push_str(email.html_body.as_ref().unwrap());
-                message.push_str("\r\n");
+                push_inline_attachments(&mut message, &related_boundary, email).await?;
             }
-
-            // Inline attachments
-            for attachment in email.attachments.iter().filter(|a| a.is_inline()) {
-                message.push_str(&format!("--{}\r\n", related_boundary));
-                message.push_str(&format!("Content-Type: {}\r\n", attachment.content_type));
-                message.push_str("Content-Transfer-Encoding: base64\r\n");
+            (None, Some(html)) if has_inline => {
+                // Use multipart/related for inline attachments
                 message.push_str(&format!(
-                    "Content-Disposition: inline; filename=\"{}\"\r\n",
-                    attachment.filename
+                    "Content-Type: multipart/related; boundary=\"{}\"\r\n\r\n",
+                    related_boundary
                 ));
-                if let Some(ref cid) = attachment.content_id {
-                    message.push_str(&format!("Content-ID: <{}>\r\n", cid));
-                }
+
+                message.push_str(&format!("--{}\r\n", related_boundary));
+                message.push_str("Content-Type: text/html; charset=utf-8\r\n\r\n");
+                message.push_str(html);
                 message.push_str("\r\n");
-                message.push_str(&attachment.base64_data_async().await?);
+                push_inline_attachments(&mut message, &related_boundary, email).await?;
+            }
+            (Some(text), Some(html)) => {
+                // Multipart/alternative
+                message.push_str(&format!(
+                    "Content-Type: multipart/alternative; boundary=\"{}\"\r\n\r\n",
+                    alt_boundary
+                ));
+
+                message.push_str(&format!("--{}\r\n", alt_boundary));
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+                message.push_str(text);
+                message.push_str("\r\n");
+
+                message.push_str(&format!("--{}\r\n", alt_boundary));
+                message.push_str("Content-Type: text/html; charset=utf-8\r\n\r\n");
+                message.push_str(html);
+                message.push_str("\r\n");
+
+                message.push_str(&format!("--{}--\r\n", alt_boundary));
+            }
+            (None, Some(html)) => {
+                message.push_str("Content-Type: text/html; charset=utf-8\r\n\r\n");
+                message.push_str(html);
                 message.push_str("\r\n");
             }
-
-            message.push_str(&format!("--{}--\r\n", related_boundary));
-        } else if has_text && has_html {
-            // Multipart/alternative
-            message.push_str(&format!(
-                "Content-Type: multipart/alternative; boundary=\"{}\"\r\n\r\n",
-                alt_boundary
-            ));
-
-            message.push_str(&format!("--{}\r\n", alt_boundary));
-            message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
-            message.push_str(email.text_body.as_ref().unwrap());
-            message.push_str("\r\n");
-
-            message.push_str(&format!("--{}\r\n", alt_boundary));
-            message.push_str("Content-Type: text/html; charset=utf-8\r\n\r\n");
-            message.push_str(email.html_body.as_ref().unwrap());
-            message.push_str("\r\n");
-
-            message.push_str(&format!("--{}--\r\n", alt_boundary));
-        } else if has_html {
-            message.push_str("Content-Type: text/html; charset=utf-8\r\n\r\n");
-            message.push_str(email.html_body.as_ref().unwrap());
-            message.push_str("\r\n");
-        } else if has_text {
-            message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
-            message.push_str(email.text_body.as_ref().unwrap());
-            message.push_str("\r\n");
+            (Some(text), None) => {
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+                message.push_str(text);
+                message.push_str("\r\n");
+            }
+            (None, None) => {
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+            }
         }
 
         // Regular attachments
         for attachment in email.attachments.iter().filter(|a| !a.is_inline()) {
             message.push_str(&format!("--{}\r\n", mixed_boundary));
+            validate_header_component("attachment content type", &attachment.content_type)?;
             message.push_str(&format!("Content-Type: {}\r\n", attachment.content_type));
             message.push_str("Content-Transfer-Encoding: base64\r\n");
-            message.push_str(&format!(
-                "Content-Disposition: attachment; filename=\"{}\"\r\n",
-                attachment.filename
-            ));
+            message.push_str(&content_disposition("attachment", &attachment.filename)?);
             message.push_str("\r\n");
-            message.push_str(&attachment.base64_data_async().await?);
-            message.push_str("\r\n");
+            push_wrapped_base64(&mut message, &attachment.base64_data_async().await?);
         }
 
         message.push_str(&format!("--{}--\r\n", mixed_boundary));
@@ -633,4 +729,75 @@ fn extract_xml_value(xml: &str, tag: &str) -> Option<String> {
     let end = xml[start..].find(&end_tag)? + start;
 
     Some(xml[start..end].to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Attachment, Email};
+
+    fn email() -> Email {
+        Email::new()
+            .from("sender@example.com")
+            .to("recipient@example.com")
+            .subject("Hello")
+            .text_body("Hello")
+    }
+
+    #[tokio::test]
+    async fn build_mime_rejects_subject_header_injection() {
+        let email = email().subject("Hello\r\nBcc: attacker@example.com");
+        let err = build_mime_message(&email).await.unwrap_err();
+
+        assert!(matches!(err, MailError::BuildError(message) if message.contains("Subject")));
+    }
+
+    #[tokio::test]
+    async fn build_mime_rejects_custom_header_injection() {
+        let email = email().header("X-Test", "ok\r\nBcc: attacker@example.com");
+        let err = build_mime_message(&email).await.unwrap_err();
+
+        assert!(matches!(err, MailError::BuildError(message) if message.contains("X-Test")));
+    }
+
+    #[tokio::test]
+    async fn build_mime_encodes_non_ascii_subject_and_display_name() {
+        let email = email().from(("José", "sender@example.com")).subject("Olá");
+
+        let raw = String::from_utf8(build_mime_message(&email).await.unwrap()).unwrap();
+
+        assert!(raw.contains("From: =?UTF-8?B?Sm9zw6k=?= <sender@example.com>\r\n"));
+        assert!(raw.contains("Subject: =?UTF-8?B?T2zDoQ==?=\r\n"));
+    }
+
+    #[tokio::test]
+    async fn build_mime_rejects_attachment_filename_injection() {
+        let attachment =
+            Attachment::from_bytes("report.pdf\r\nContent-Type: text/html", b"hello".to_vec());
+        let email = email().attachment(attachment);
+
+        let err = build_mime_message(&email).await.unwrap_err();
+
+        assert!(
+            matches!(err, MailError::BuildError(message) if message.contains("attachment filename"))
+        );
+    }
+
+    #[tokio::test]
+    async fn build_mime_wraps_attachment_base64_lines() {
+        let attachment = Attachment::from_bytes("report.txt", vec![b'a'; 80]);
+        let email = email().attachment(attachment);
+
+        let raw = String::from_utf8(build_mime_message(&email).await.unwrap()).unwrap();
+
+        for line in raw.lines() {
+            if line
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '+' || ch == '/' || ch == '=')
+                && line.len() > 76
+            {
+                panic!("base64 line exceeded 76 characters: {line}");
+            }
+        }
+    }
 }

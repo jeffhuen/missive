@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Errors that can occur when sending emails.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum MailError {
     /// Email provider is not configured.
     #[error("Email provider not configured")]

@@ -100,7 +100,9 @@ impl DeliveryResult {
 /// use missive::{Email, Mailer};
 /// use missive::providers::SmtpMailer;
 ///
-/// let mailer = SmtpMailer::new("smtp.example.com", 587, "user", "pass");
+/// let mailer = SmtpMailer::new("smtp.example.com", 587)
+///     .credentials("user", "pass")
+///     .build()?;
 ///
 /// let email = Email::new()
 ///     .from("sender@example.com")

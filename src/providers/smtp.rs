@@ -8,7 +8,7 @@
 //! // With authentication
 //! let mailer = SmtpMailer::new("smtp.example.com", 587)
 //!     .credentials("username", "password")
-//!     .build();
+//!     .build()?;
 //!
 //! // Without authentication (local relay)
 //! let mailer = SmtpMailer::localhost();
@@ -187,7 +187,8 @@ impl Mailer for SmtpMailer {
 }
 
 /// TLS mode for SMTP connection.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TlsMode {
     /// No TLS (dangerous, only for localhost)
     None,
@@ -225,7 +226,12 @@ impl SmtpBuilder {
     }
 
     /// Build the SmtpMailer.
-    pub fn build(self) -> SmtpMailer {
+    ///
+    /// This is fallible for TLS modes because lettre may reject TLS transport
+    /// parameters while constructing the transport. Requested TLS modes are
+    /// never silently downgraded; use [`SmtpBuilder::no_tls`] for explicit
+    /// plaintext SMTP.
+    pub fn build(self) -> Result<SmtpMailer, MailError> {
         let transport = match self.tls {
             TlsMode::None => {
                 let mut t = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.host)
@@ -236,10 +242,7 @@ impl SmtpBuilder {
                 t.build()
             }
             TlsMode::StartTls => {
-                let mut t = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.host)
-                    .unwrap_or_else(|_| {
-                        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.host)
-                    })
+                let mut t = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.host)?
                     .port(self.port);
                 if let Some(creds) = self.credentials {
                     t = t.credentials(creds);
@@ -247,11 +250,8 @@ impl SmtpBuilder {
                 t.build()
             }
             TlsMode::Tls => {
-                let mut t = AsyncSmtpTransport::<Tokio1Executor>::relay(&self.host)
-                    .unwrap_or_else(|_| {
-                        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&self.host)
-                    })
-                    .port(self.port);
+                let mut t =
+                    AsyncSmtpTransport::<Tokio1Executor>::relay(&self.host)?.port(self.port);
                 if let Some(creds) = self.credentials {
                     t = t.credentials(creds);
                 }
@@ -259,7 +259,7 @@ impl SmtpBuilder {
             }
         };
 
-        SmtpMailer { transport }
+        Ok(SmtpMailer { transport })
     }
 }
 
@@ -334,5 +334,15 @@ mod tests {
         let raw = String::from_utf8(message.formatted()).unwrap();
 
         assert!(raw.contains("\r\nX-Campaign: Avengers\r\n"));
+    }
+
+    #[test]
+    fn no_tls_builder_is_explicit_plaintext() {
+        let mailer = SmtpMailer::new("not a valid host name", 25)
+            .no_tls()
+            .build()
+            .unwrap();
+
+        assert_eq!(mailer.provider_name(), "smtp");
     }
 }

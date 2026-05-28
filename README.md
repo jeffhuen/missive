@@ -59,7 +59,7 @@ Missive supports popular transactional email services out of the box:
 
 | Provider | Feature | Environment Variables |
 |----------|---------|----------------------|
-| SMTP | `smtp` | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` |
+| SMTP | `smtp` | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_TLS` |
 | Resend | `resend` | `RESEND_API_KEY` |
 | SendGrid | `sendgrid` | `SENDGRID_API_KEY` |
 | Postmark | `postmark` | `POSTMARK_API_KEY` |
@@ -136,6 +136,7 @@ EMAIL_FROM=noreply@example.com
 SMTP_HOST=mail.example.com
 SMTP_USERNAME=apikey
 SMTP_PASSWORD=your-api-key
+SMTP_TLS=starttls
 ```
 
 Same compiled binary, different behavior per environment.
@@ -280,7 +281,7 @@ portable filesystem.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `EMAIL_PROVIDER` | Which provider to use | `smtp` |
+| `EMAIL_PROVIDER` | Which provider to use; auto-detected when unset | (auto) |
 | `EMAIL_FROM` | Default sender email | (none) |
 | `EMAIL_FROM_NAME` | Default sender name | (none) |
 
@@ -293,7 +294,7 @@ portable filesystem.
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_USERNAME` | SMTP username | (optional) |
 | `SMTP_PASSWORD` | SMTP password | (optional) |
-| `SMTP_TLS` | TLS mode: `required`, `opportunistic`, `none` | `required` |
+| `SMTP_TLS` | TLS mode: `starttls`, `tls`, or `none`; `opportunistic` is rejected to avoid silent downgrade | `starttls` |
 
 **API Providers:**
 | Variable | Provider |

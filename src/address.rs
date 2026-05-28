@@ -1,6 +1,7 @@
 //! Email address type with optional display name.
 
 use crate::error::MailError;
+use base64::Engine;
 use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -42,7 +43,6 @@ impl Address {
         // Basic sanity check - log warning for obviously invalid emails
         if !Self::basic_sanity_check(&email) {
             tracing::warn!(
-                email = %email,
                 "Creating address with potentially invalid email. Use Address::parse() for strict validation."
             );
         }
@@ -61,7 +61,6 @@ impl Address {
         // Basic sanity check - log warning for obviously invalid emails
         if !Self::basic_sanity_check(&email) {
             tracing::warn!(
-                email = %email,
                 "Creating address with potentially invalid email. Use Address::parse_with_name() for strict validation."
             );
         }
@@ -231,9 +230,17 @@ impl Address {
     /// Combines RFC 5322 escaping with IDN/Punycode conversion.
     pub fn formatted_rfc5322_ascii(&self) -> Result<String, MailError> {
         let ascii_email = self.to_ascii()?;
+        validate_header_component("email address", &ascii_email)?;
+
         match &self.name {
             Some(name) if name.is_empty() => Ok(ascii_email),
             Some(name) => {
+                validate_header_component("display name", name)?;
+
+                if !name.is_ascii() {
+                    return Ok(format!("{} <{}>", encode_rfc2047_phrase(name), ascii_email));
+                }
+
                 // Escape backslashes first, then quotes
                 let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
                 Ok(format!("\"{}\" <{}>", escaped, ascii_email))
@@ -273,6 +280,45 @@ impl Address {
             None => self.email.clone(),
         }
     }
+}
+
+pub(crate) fn validate_header_component(field: &str, value: &str) -> Result<(), MailError> {
+    if value.chars().any(|ch| ch.is_control() && ch != '\t') {
+        return Err(MailError::BuildError(format!(
+            "{field} must not contain control characters"
+        )));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn encode_rfc2047_phrase(value: &str) -> String {
+    if value.is_ascii() {
+        return value.to_string();
+    }
+
+    let mut encoded_words = Vec::new();
+    let mut chunk = String::new();
+
+    for ch in value.chars() {
+        let ch_len = ch.len_utf8();
+        if !chunk.is_empty() && chunk.len() + ch_len > 45 {
+            encoded_words.push(encode_rfc2047_chunk(&chunk));
+            chunk.clear();
+        }
+        chunk.push(ch);
+    }
+
+    if !chunk.is_empty() {
+        encoded_words.push(encode_rfc2047_chunk(&chunk));
+    }
+
+    encoded_words.join(" ")
+}
+
+fn encode_rfc2047_chunk(value: &str) -> String {
+    let encoded = base64::engine::general_purpose::STANDARD.encode(value.as_bytes());
+    format!("=?UTF-8?B?{}?=", encoded)
 }
 
 impl fmt::Display for Address {
@@ -639,6 +685,23 @@ mod tests {
             addr.formatted_rfc5322_ascii().unwrap(),
             "\"User \\\"Nick\\\" Name\" <user@xn--r8jz45g.jp>"
         );
+    }
+
+    #[test]
+    fn test_formatted_rfc5322_ascii_encodes_non_ascii_name() {
+        let addr = Address::with_name("José", "user@example.com");
+        assert_eq!(
+            addr.formatted_rfc5322_ascii().unwrap(),
+            "=?UTF-8?B?Sm9zw6k=?= <user@example.com>"
+        );
+    }
+
+    #[test]
+    fn test_formatted_rfc5322_ascii_rejects_header_newline() {
+        let addr = Address::with_name("User\r\nBcc: attacker@example.com", "user@example.com");
+        let err = addr.formatted_rfc5322_ascii().unwrap_err();
+
+        assert!(matches!(err, MailError::BuildError(message) if message.contains("display name")));
     }
 
     // ========================================================================

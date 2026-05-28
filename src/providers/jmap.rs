@@ -145,10 +145,7 @@ impl JmapMailer {
 
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     fn cached_session(&self) -> Option<JmapSession> {
-        self.session
-            .read()
-            .expect("JMAP session cache lock poisoned")
-            .clone()
+        read_session_cache(&self.session).clone()
     }
 
     #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
@@ -158,10 +155,7 @@ impl JmapMailer {
 
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     fn cache_session(&self, session: JmapSession) {
-        *self
-            .session
-            .write()
-            .expect("JMAP session cache lock poisoned") = Some(session);
+        *write_session_cache(&self.session) = Some(session);
     }
 
     /// Fetch JMAP session from server.
@@ -530,6 +524,18 @@ fn session_cache(session: Option<JmapSession>) -> JmapSessionCache {
 #[cfg(all(target_family = "wasm", target_os = "unknown"))]
 fn session_cache(session: Option<JmapSession>) -> JmapSessionCache {
     std::sync::RwLock::new(session)
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn read_session_cache<T>(lock: &std::sync::RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
+    lock.read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+fn write_session_cache<T>(lock: &std::sync::RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
+    lock.write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Builder for JmapMailer.

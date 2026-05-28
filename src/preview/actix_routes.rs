@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::storage::MemoryStorage;
 
-use super::core::{self, EmailListResponse, PreviewConfig};
+use super::core::{self, AttachmentData, EmailListResponse, PreviewConfig};
 
 /// Shared state for routes.
 #[derive(Clone)]
@@ -87,13 +87,17 @@ async fn download_attachment(
 ) -> impl Responder {
     let (id, idx) = path.into_inner();
     match core::get_attachment(&state.storage, &id, idx) {
-        Some(att) => HttpResponse::Ok()
-            .content_type(att.mime_type().to_owned())
+        Some(AttachmentData {
+            data,
+            filename,
+            content_type,
+        }) => HttpResponse::Ok()
+            .content_type(content_type)
             .insert_header((
                 "Content-Disposition",
-                format!("attachment; filename=\"{}\"", att.filename()),
+                format!("attachment; filename=\"{}\"", filename),
             ))
-            .body(att.data().to_vec()),
+            .body(data),
         None => HttpResponse::NotFound().finish(),
     }
 }
