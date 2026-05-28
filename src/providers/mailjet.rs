@@ -92,7 +92,7 @@ impl MailjetMailer {
         format!("Basic {}", BASE64.encode(credentials.as_bytes()))
     }
 
-    fn build_message(&self, email: &Email) -> Result<MailjetMessage, MailError> {
+    async fn build_message(&self, email: &Email) -> Result<MailjetMessage, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -171,41 +171,29 @@ impl MailjetMailer {
                 .partition(|a| a.disposition == crate::attachment::AttachmentType::Inline);
 
             if !regular.is_empty() {
-                message.attachments = Some(
-                    regular
-                        .iter()
-                        .map(|a| {
-                            Ok(MailjetAttachment {
-                                content_type: a.content_type.clone(),
-                                filename: a.filename.clone(),
-                                base64_content: a.base64_data()?,
-                                content_id: a
-                                    .content_id
-                                    .clone()
-                                    .unwrap_or_else(|| a.filename.clone()),
-                            })
-                        })
-                        .collect::<Result<_, MailError>>()?,
-                );
+                let mut attachments = Vec::with_capacity(regular.len());
+                for a in regular {
+                    attachments.push(MailjetAttachment {
+                        content_type: a.content_type.clone(),
+                        filename: a.filename.clone(),
+                        base64_content: a.base64_data_async().await?,
+                        content_id: a.content_id.clone().unwrap_or_else(|| a.filename.clone()),
+                    });
+                }
+                message.attachments = Some(attachments);
             }
 
             if !inline.is_empty() {
-                message.inlined_attachments = Some(
-                    inline
-                        .iter()
-                        .map(|a| {
-                            Ok(MailjetAttachment {
-                                content_type: a.content_type.clone(),
-                                filename: a.filename.clone(),
-                                base64_content: a.base64_data()?,
-                                content_id: a
-                                    .content_id
-                                    .clone()
-                                    .unwrap_or_else(|| a.filename.clone()),
-                            })
-                        })
-                        .collect::<Result<_, MailError>>()?,
-                );
+                let mut attachments = Vec::with_capacity(inline.len());
+                for a in inline {
+                    attachments.push(MailjetAttachment {
+                        content_type: a.content_type.clone(),
+                        filename: a.filename.clone(),
+                        base64_content: a.base64_data_async().await?,
+                        content_id: a.content_id.clone().unwrap_or_else(|| a.filename.clone()),
+                    });
+                }
+                message.inlined_attachments = Some(attachments);
             }
         }
 
@@ -253,7 +241,7 @@ impl MailjetMailer {
 #[async_trait]
 impl Mailer for MailjetMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let message = self.build_message(email)?;
+        let message = self.build_message(email).await?;
         let request = MailjetRequest {
             messages: vec![message],
         };
@@ -341,10 +329,11 @@ impl Mailer for MailjetMailer {
             return Ok(vec![]);
         }
 
-        let messages: Result<Vec<_>, _> = emails.iter().map(|e| self.build_message(e)).collect();
-        let request = MailjetRequest {
-            messages: messages?,
-        };
+        let mut messages = Vec::with_capacity(emails.len());
+        for email in emails {
+            messages.push(self.build_message(email).await?);
+        }
+        let request = MailjetRequest { messages };
 
         let url = format!("{}/send", self.base_url);
         let response = self

@@ -107,7 +107,7 @@ impl MailtrapMailer {
         }
     }
 
-    fn build_request(&self, email: &Email) -> Result<MailtrapRequest, MailError> {
+    async fn build_request(&self, email: &Email) -> Result<MailtrapRequest, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -166,29 +166,25 @@ impl MailtrapMailer {
 
         // Add attachments
         if !email.attachments.is_empty() {
-            request.attachments = Some(
-                email
-                    .attachments
-                    .iter()
-                    .map(|a| {
-                        let mut attachment = MailtrapAttachment {
-                            filename: a.filename.clone(),
-                            content_type: a.content_type.clone(),
-                            content: a.base64_data()?,
-                            disposition: if a.is_inline() {
-                                "inline".to_string()
-                            } else {
-                                "attachment".to_string()
-                            },
-                            content_id: None,
-                        };
-                        if a.is_inline() {
-                            attachment.content_id = Some(a.filename.clone());
-                        }
-                        Ok(attachment)
-                    })
-                    .collect::<Result<_, MailError>>()?,
-            );
+            let mut attachments = Vec::with_capacity(email.attachments.len());
+            for a in &email.attachments {
+                let mut attachment = MailtrapAttachment {
+                    filename: a.filename.clone(),
+                    content_type: a.content_type.clone(),
+                    content: a.base64_data_async().await?,
+                    disposition: if a.is_inline() {
+                        "inline".to_string()
+                    } else {
+                        "attachment".to_string()
+                    },
+                    content_id: None,
+                };
+                if a.is_inline() {
+                    attachment.content_id = Some(a.filename.clone());
+                }
+                attachments.push(attachment);
+            }
+            request.attachments = Some(attachments);
         }
 
         // Build headers (including Reply-To)
@@ -215,7 +211,7 @@ impl MailtrapMailer {
 #[async_trait]
 impl Mailer for MailtrapMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let request = self.build_request(email)?;
+        let request = self.build_request(email).await?;
         let url = self.prepare_url();
 
         let response = self

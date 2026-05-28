@@ -315,7 +315,11 @@ impl JmapMailer {
     }
 
     /// Build the JMAP Email object from our Email struct.
-    fn build_email_object(&self, email: &Email, mailbox_id: &str) -> Result<Value, MailError> {
+    async fn build_email_object(
+        &self,
+        email: &Email,
+        mailbox_id: &str,
+    ) -> Result<Value, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -429,34 +433,29 @@ impl JmapMailer {
         let attachments: Option<Vec<Value>> = if email.attachments.is_empty() {
             None
         } else {
-            Some(
-                email
-                    .attachments
-                    .iter()
-                    .enumerate()
-                    .map(|(i, a)| {
-                        let part_id = format!("att{}", i);
-                        body_values.insert(
-                            part_id.clone(),
-                            json!({
-                                "value": a.base64_data()?,
-                                "isEncodingProblem": false,
-                                "isTruncated": false,
-                            }),
-                        );
-                        let mut att = json!({
-                            "partId": part_id,
-                            "type": a.content_type,
-                            "name": a.filename,
-                            "disposition": if a.is_inline() { "inline" } else { "attachment" },
-                        });
-                        if let Some(ref cid) = a.content_id {
-                            att["cid"] = json!(cid);
-                        }
-                        Ok(att)
-                    })
-                    .collect::<Result<_, MailError>>()?,
-            )
+            let mut attachments = Vec::with_capacity(email.attachments.len());
+            for (i, a) in email.attachments.iter().enumerate() {
+                let part_id = format!("att{}", i);
+                body_values.insert(
+                    part_id.clone(),
+                    json!({
+                        "value": a.base64_data_async().await?,
+                        "isEncodingProblem": false,
+                        "isTruncated": false,
+                    }),
+                );
+                let mut att = json!({
+                    "partId": part_id,
+                    "type": a.content_type,
+                    "name": a.filename,
+                    "disposition": if a.is_inline() { "inline" } else { "attachment" },
+                });
+                if let Some(ref cid) = a.content_id {
+                    att["cid"] = json!(cid);
+                }
+                attachments.push(att);
+            }
+            Some(attachments)
         };
 
         // Build custom headers
@@ -607,7 +606,7 @@ impl Mailer for JmapMailer {
         let mailbox_id = self.get_drafts_mailbox_id(&session).await?;
 
         // Build email object
-        let email_obj = self.build_email_object(email, &mailbox_id)?;
+        let email_obj = self.build_email_object(email, &mailbox_id).await?;
 
         // Build JMAP request with Email/set and EmailSubmission/set
         let request = JmapRequest {

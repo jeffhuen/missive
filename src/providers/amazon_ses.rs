@@ -162,8 +162,8 @@ impl AmazonSesMailer {
         format!("email.{}.amazonaws.com", self.region)
     }
 
-    fn build_body(&self, email: &Email) -> Result<String, MailError> {
-        let raw_message = build_mime_message(email)?;
+    async fn build_body(&self, email: &Email) -> Result<String, MailError> {
+        let raw_message = build_mime_message(email).await?;
         let encoded = base64::engine::general_purpose::STANDARD.encode(&raw_message);
         let url_encoded = urlencoding::encode(&encoded);
 
@@ -341,7 +341,7 @@ fn amz_datetime(dt: &DateTime<Utc>) -> String {
 }
 
 /// Build a MIME message from an Email.
-fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
+async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
     let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
     if email.to.is_empty() {
@@ -504,7 +504,7 @@ fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
                     message.push_str(&format!("Content-ID: <{}>\r\n", cid));
                 }
                 message.push_str("\r\n");
-                message.push_str(&attachment.base64_data()?);
+                message.push_str(&attachment.base64_data_async().await?);
                 message.push_str("\r\n");
             }
 
@@ -547,7 +547,7 @@ fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
                 attachment.filename
             ));
             message.push_str("\r\n");
-            message.push_str(&attachment.base64_data()?);
+            message.push_str(&attachment.base64_data_async().await?);
             message.push_str("\r\n");
         }
 
@@ -560,7 +560,7 @@ fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
 #[async_trait]
 impl Mailer for AmazonSesMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let body = self.build_body(email)?;
+        let body = self.build_body(email).await?;
         let date_time = Utc::now();
 
         // Get security token from provider options

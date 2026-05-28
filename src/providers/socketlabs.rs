@@ -99,7 +99,7 @@ impl SocketLabsMailer {
         self
     }
 
-    fn build_message(&self, email: &Email) -> Result<SocketLabsMessage, MailError> {
+    async fn build_message(&self, email: &Email) -> Result<SocketLabsMessage, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -151,25 +151,21 @@ impl SocketLabsMailer {
 
         // Add attachments
         if !email.attachments.is_empty() {
-            message.attachments = Some(
-                email
-                    .attachments
-                    .iter()
-                    .map(|a| {
-                        Ok(SocketLabsAttachment {
-                            name: a.filename.clone(),
-                            content_type: a.content_type.clone(),
-                            content: a.base64_data()?,
-                            // Use filename as ContentId for inline attachments
-                            content_id: if a.is_inline() {
-                                a.content_id.clone().unwrap_or_else(|| a.filename.clone())
-                            } else {
-                                a.filename.clone()
-                            },
-                        })
-                    })
-                    .collect::<Result<_, MailError>>()?,
-            );
+            let mut attachments = Vec::with_capacity(email.attachments.len());
+            for a in &email.attachments {
+                attachments.push(SocketLabsAttachment {
+                    name: a.filename.clone(),
+                    content_type: a.content_type.clone(),
+                    content: a.base64_data_async().await?,
+                    // Use filename as ContentId for inline attachments
+                    content_id: if a.is_inline() {
+                        a.content_id.clone().unwrap_or_else(|| a.filename.clone())
+                    } else {
+                        a.filename.clone()
+                    },
+                });
+            }
+            message.attachments = Some(attachments);
         }
 
         // Custom headers
@@ -227,7 +223,7 @@ impl SocketLabsMailer {
 #[async_trait]
 impl Mailer for SocketLabsMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let message = self.build_message(email)?;
+        let message = self.build_message(email).await?;
         let request = self.build_request(vec![message])?;
 
         let url = format!("{}/email", self.base_url);
@@ -295,10 +291,10 @@ impl Mailer for SocketLabsMailer {
         }
 
         // Build all messages
-        let messages: Vec<SocketLabsMessage> = emails
-            .iter()
-            .map(|email| self.build_message(email))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut messages = Vec::with_capacity(emails.len());
+        for email in emails {
+            messages.push(self.build_message(email).await?);
+        }
 
         let request = self.build_request(messages)?;
 

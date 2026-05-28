@@ -106,7 +106,7 @@ impl MailgunMailer {
         format!("Basic {}", encoded)
     }
 
-    fn build_form(&self, email: &Email) -> Result<Form, MailError> {
+    async fn build_form(&self, email: &Email) -> Result<Form, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -224,7 +224,7 @@ impl MailgunMailer {
 
         // Attachments
         for attachment in &email.attachments {
-            let data = attachment.get_data()?;
+            let data = attachment.get_data_async().await?;
 
             let field_name = match attachment.disposition {
                 crate::attachment::AttachmentType::Inline => "inline",
@@ -253,7 +253,7 @@ fn encode_variable(value: &Value) -> String {
 #[async_trait]
 impl Mailer for MailgunMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let form = self.build_form(email)?;
+        let form = self.build_form(email).await?;
         let url = format!("{}/{}/messages", self.base_url, self.domain);
 
         let response = self

@@ -12,11 +12,12 @@ categories = ["email", "web-programming"]
 default = []
 
 # Internal features (not for direct use)
-_http = ["dep:reqwest"]  # Shared HTTP client for API-based providers
+_http = ["dep:reqwest", "_async_attachment_io"]  # Shared HTTP client for API-based providers
 _aws_sig = ["dep:ring", "dep:sha2", "dep:hex", "dep:urlencoding"]  # AWS Signature v4
+_async_attachment_io = ["dep:tokio"]  # Async lazy attachment file reads for async providers
 
 # Providers
-smtp = ["dep:lettre"]
+smtp = ["dep:lettre", "_async_attachment_io"]
 resend = ["_http"]
 unsent = ["_http"]
 postmark = ["_http"]
@@ -67,6 +68,7 @@ lettre = { version = "0.11", default-features = false, features = ["tokio1-rustl
 
 # Optional: HTTP-based providers
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"], optional = true }
+tokio = { version = "1", features = ["fs", "rt"], optional = true }
 
 # Optional: Preview UI (Axum)
 axum = { version = "0.8", optional = true }

@@ -91,7 +91,7 @@ impl BrevoMailer {
         self
     }
 
-    fn build_request(&self, email: &Email) -> Result<BrevoRequest, MailError> {
+    async fn build_request(&self, email: &Email) -> Result<BrevoRequest, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -149,18 +149,14 @@ impl BrevoMailer {
 
         // Add attachments
         if !email.attachments.is_empty() {
-            request.attachment = Some(
-                email
-                    .attachments
-                    .iter()
-                    .map(|a| {
-                        Ok(BrevoAttachment {
-                            name: a.filename.clone(),
-                            content: a.base64_data()?,
-                        })
-                    })
-                    .collect::<Result<_, MailError>>()?,
-            );
+            let mut attachments = Vec::with_capacity(email.attachments.len());
+            for a in &email.attachments {
+                attachments.push(BrevoAttachment {
+                    name: a.filename.clone(),
+                    content: a.base64_data_async().await?,
+                });
+            }
+            request.attachment = Some(attachments);
         }
 
         Ok(request)
@@ -206,7 +202,7 @@ fn prepare_recipient(addr: &crate::Address) -> BrevoRecipient {
 #[async_trait]
 impl Mailer for BrevoMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let request = self.build_request(email)?;
+        let request = self.build_request(email).await?;
         let url = format!("{}{}", self.base_url, BREVO_API_ENDPOINT);
 
         let response = self
@@ -260,6 +256,19 @@ impl Mailer for BrevoMailer {
             .ok_or(MailError::MissingField("from"))?;
 
         // Build batch request with messageVersions
+        let attachments = if first_email.attachments.is_empty() {
+            None
+        } else {
+            let mut attachments = Vec::with_capacity(first_email.attachments.len());
+            for a in &first_email.attachments {
+                attachments.push(BrevoAttachment {
+                    name: a.filename.clone(),
+                    content: a.base64_data_async().await?,
+                });
+            }
+            Some(attachments)
+        };
+
         let batch_request = BrevoBatchRequest {
             sender: prepare_sender(from, first_email),
             subject: if first_email.subject.is_empty() {
@@ -277,22 +286,7 @@ impl Mailer for BrevoMailer {
                 .provider_options
                 .get("tags")
                 .and_then(|v| serde_json::from_value(v.clone()).ok()),
-            attachment: if first_email.attachments.is_empty() {
-                None
-            } else {
-                Some(
-                    first_email
-                        .attachments
-                        .iter()
-                        .map(|a| {
-                            Ok(BrevoAttachment {
-                                name: a.filename.clone(),
-                                content: a.base64_data()?,
-                            })
-                        })
-                        .collect::<Result<_, MailError>>()?,
-                )
-            },
+            attachment: attachments,
             scheduled_at: first_email
                 .provider_options
                 .get("schedule_at")

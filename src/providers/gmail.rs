@@ -89,7 +89,7 @@ impl GmailMailer {
     }
 
     /// Build a lettre Message from our Email struct (RFC 2822 format).
-    fn build_message(&self, email: &Email) -> Result<Message, MailError> {
+    async fn build_message(&self, email: &Email) -> Result<Message, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -156,7 +156,7 @@ impl GmailMailer {
             let mut multipart = MultiPart::mixed().multipart(body_part);
 
             for attachment in &email.attachments {
-                let data = attachment.get_data()?;
+                let data = attachment.get_data_async().await?;
                 let content_type: ContentType = attachment
                     .content_type
                     .parse()
@@ -188,7 +188,7 @@ impl GmailMailer {
 #[async_trait]
 impl Mailer for GmailMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let message = self.build_message(email)?;
+        let message = self.build_message(email).await?;
 
         // Convert lettre Message to RFC 2822 bytes
         let raw_message = message.formatted();

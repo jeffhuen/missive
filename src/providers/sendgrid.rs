@@ -111,7 +111,7 @@ impl SendGridMailer {
         self
     }
 
-    fn build_request(&self, email: &Email) -> Result<SendGridRequest, MailError> {
+    async fn build_request(&self, email: &Email) -> Result<SendGridRequest, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         // Check if custom personalizations are provided
@@ -195,32 +195,27 @@ impl SendGridMailer {
 
         // Add attachments
         if !email.attachments.is_empty() {
-            request.attachments = Some(
-                email
-                    .attachments
-                    .iter()
-                    .map(|a| {
-                        let (disposition, content_id) = match a.disposition {
-                            crate::attachment::AttachmentType::Inline => {
-                                // For inline attachments, use content_id if provided, else filename
-                                let cid =
-                                    a.content_id.clone().unwrap_or_else(|| a.filename.clone());
-                                ("inline".to_string(), Some(cid))
-                            }
-                            crate::attachment::AttachmentType::Attachment => {
-                                ("attachment".to_string(), None)
-                            }
-                        };
-                        Ok(SendGridAttachment {
-                            content: a.base64_data()?,
-                            filename: a.filename.clone(),
-                            content_type: Some(a.content_type.clone()),
-                            disposition: Some(disposition),
-                            content_id,
-                        })
-                    })
-                    .collect::<Result<_, MailError>>()?,
-            );
+            let mut attachments = Vec::with_capacity(email.attachments.len());
+            for a in &email.attachments {
+                let (disposition, content_id) = match a.disposition {
+                    crate::attachment::AttachmentType::Inline => {
+                        // For inline attachments, use content_id if provided, else filename
+                        let cid = a.content_id.clone().unwrap_or_else(|| a.filename.clone());
+                        ("inline".to_string(), Some(cid))
+                    }
+                    crate::attachment::AttachmentType::Attachment => {
+                        ("attachment".to_string(), None)
+                    }
+                };
+                attachments.push(SendGridAttachment {
+                    content: a.base64_data_async().await?,
+                    filename: a.filename.clone(),
+                    content_type: Some(a.content_type.clone()),
+                    disposition: Some(disposition),
+                    content_id,
+                });
+            }
+            request.attachments = Some(attachments);
         }
 
         // Custom headers
@@ -357,7 +352,7 @@ impl Mailer for SendGridMailer {
     }
 
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let request = self.build_request(email)?;
+        let request = self.build_request(email).await?;
 
         let url = format!("{}/mail/send", self.base_url);
         let json_body = serde_json::to_vec(&request)?;

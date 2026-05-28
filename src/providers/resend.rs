@@ -163,7 +163,7 @@ impl ResendMailer {
         self
     }
 
-    fn build_request(&self, email: &Email) -> Result<ResendRequest, MailError> {
+    async fn build_request(&self, email: &Email) -> Result<ResendRequest, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -213,24 +213,21 @@ impl ResendMailer {
 
         // Add attachments
         if !email.attachments.is_empty() {
-            let attachments: Vec<ResendAttachment> = email
-                .attachments
-                .iter()
-                .map(|a| {
-                    // Only include content_id for inline attachments
-                    let content_id = if a.is_inline() {
-                        a.content_id.clone()
-                    } else {
-                        None
-                    };
-                    Ok(ResendAttachment {
-                        filename: a.filename.clone(),
-                        content: a.base64_data()?,
-                        content_type: Some(a.content_type.clone()),
-                        content_id,
-                    })
-                })
-                .collect::<Result<_, MailError>>()?;
+            let mut attachments = Vec::with_capacity(email.attachments.len());
+            for a in &email.attachments {
+                // Only include content_id for inline attachments
+                let content_id = if a.is_inline() {
+                    a.content_id.clone()
+                } else {
+                    None
+                };
+                attachments.push(ResendAttachment {
+                    filename: a.filename.clone(),
+                    content: a.base64_data_async().await?,
+                    content_type: Some(a.content_type.clone()),
+                    content_id,
+                });
+            }
             request.attachments = Some(attachments);
         }
 
@@ -252,7 +249,7 @@ impl ResendMailer {
 #[async_trait]
 impl Mailer for ResendMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let request = self.build_request(email)?;
+        let request = self.build_request(email).await?;
 
         let url = format!("{}/emails", self.base_url);
         let mut req = self
@@ -327,10 +324,10 @@ impl Mailer for ResendMailer {
         self.validate_batch(emails)?;
 
         // Build requests
-        let requests: Vec<ResendRequest> = emails
-            .iter()
-            .map(|email| self.build_request(email))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut requests = Vec::with_capacity(emails.len());
+        for email in emails {
+            requests.push(self.build_request(email).await?);
+        }
 
         let url = format!("{}/emails/batch", self.base_url);
         let response = self

@@ -62,3 +62,16 @@ attachment payload.
 For compatibility, `Attachment::get_data()` continues to return an owned
 `Vec<u8>`. Use `Attachment::data()` when borrowing eagerly loaded bytes is
 sufficient.
+
+## Lazy Attachment Reads In Async Providers
+
+Lazy path-based attachments are still available through
+`Attachment::from_path_lazy`. The synchronous `Attachment::get_data()` and
+`Attachment::base64_data()` APIs remain synchronous for callers that use them
+directly.
+
+When an async provider feature such as `smtp` or any HTTP provider is enabled,
+missive enables an internal Tokio-backed attachment I/O path and provider
+delivery uses that path instead of reading files directly on the async worker
+thread. The default feature set does not add Tokio solely for core attachment
+construction or inspection.

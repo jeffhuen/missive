@@ -108,7 +108,7 @@ impl PostmarkMailer {
             || email.provider_options.contains_key("template_alias")
     }
 
-    fn build_request(&self, email: &Email) -> Result<PostmarkRequest, MailError> {
+    async fn build_request(&self, email: &Email) -> Result<PostmarkRequest, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -170,26 +170,22 @@ impl PostmarkMailer {
 
         // Add attachments
         if !email.attachments.is_empty() {
-            request.attachments = Some(
-                email
-                    .attachments
-                    .iter()
-                    .map(|a| {
-                        let content_id = if a.is_inline() {
-                            // Postmark requires "cid:" prefix for inline attachments
-                            a.content_id.as_ref().map(|cid| format!("cid:{}", cid))
-                        } else {
-                            None
-                        };
-                        Ok(PostmarkAttachment {
-                            name: a.filename.clone(),
-                            content: a.base64_data()?,
-                            content_type: a.content_type.clone(),
-                            content_id,
-                        })
-                    })
-                    .collect::<Result<_, MailError>>()?,
-            );
+            let mut attachments = Vec::with_capacity(email.attachments.len());
+            for a in &email.attachments {
+                let content_id = if a.is_inline() {
+                    // Postmark requires "cid:" prefix for inline attachments
+                    a.content_id.as_ref().map(|cid| format!("cid:{}", cid))
+                } else {
+                    None
+                };
+                attachments.push(PostmarkAttachment {
+                    name: a.filename.clone(),
+                    content: a.base64_data_async().await?,
+                    content_type: a.content_type.clone(),
+                    content_id,
+                });
+            }
+            request.attachments = Some(attachments);
         }
 
         // Custom headers
@@ -279,7 +275,7 @@ impl PostmarkMailer {
 #[async_trait]
 impl Mailer for PostmarkMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let request = self.build_request(email)?;
+        let request = self.build_request(email).await?;
 
         // Use template endpoint if template_id or template_alias is set
         let url = if Self::is_template_email(email) {
@@ -317,10 +313,10 @@ impl Mailer for PostmarkMailer {
             .any(|email| Self::is_template_email(email.as_email()));
 
         // Build requests
-        let requests: Vec<PostmarkRequest> = emails
-            .iter()
-            .map(|email| self.build_request(email))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut requests = Vec::with_capacity(emails.len());
+        for email in emails {
+            requests.push(self.build_request(email).await?);
+        }
 
         // Use appropriate batch endpoint
         let url = if has_templates {

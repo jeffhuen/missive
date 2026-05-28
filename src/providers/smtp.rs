@@ -56,7 +56,7 @@ impl SmtpMailer {
     }
 
     /// Build a lettre Message from our Email struct.
-    fn build_message(&self, email: &Email) -> Result<Message, MailError> {
+    async fn build_message(&self, email: &Email) -> Result<Message, MailError> {
         let from = email.from.as_ref().ok_or(MailError::MissingField("from"))?;
 
         if email.to.is_empty() {
@@ -128,7 +128,7 @@ impl SmtpMailer {
             let mut multipart = MultiPart::mixed().multipart(body_part);
 
             for attachment in &email.attachments {
-                let data = attachment.get_data()?;
+                let data = attachment.get_data_async().await?;
                 let content_type: ContentType = attachment
                     .content_type
                     .parse()
@@ -160,7 +160,7 @@ impl SmtpMailer {
 #[async_trait]
 impl Mailer for SmtpMailer {
     async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
-        let message = self.build_message(email)?;
+        let message = self.build_message(email).await?;
 
         let response = self.transport.send(message).await?;
 
@@ -270,8 +270,8 @@ mod tests {
     use crate::{Attachment, Email};
     use std::fs;
 
-    #[test]
-    fn build_message_loads_lazy_attachment_data() {
+    #[tokio::test]
+    async fn build_message_loads_lazy_attachment_data() {
         let path = std::env::temp_dir().join(format!(
             "missive-smtp-lazy-attachment-{}.txt",
             std::process::id()
@@ -286,15 +286,15 @@ mod tests {
             .text_body("Hello")
             .attachment(Attachment::from_path_lazy(&path).unwrap());
 
-        let message = mailer.build_message(&email).unwrap();
+        let message = mailer.build_message(&email).await.unwrap();
         fs::remove_file(&path).unwrap();
 
         let raw = String::from_utf8(message.formatted()).unwrap();
         assert!(raw.contains("assemble"));
     }
 
-    #[test]
-    fn build_message_returns_error_for_missing_lazy_attachment() {
+    #[tokio::test]
+    async fn build_message_returns_error_for_missing_lazy_attachment() {
         let path = std::env::temp_dir().join(format!(
             "missive-smtp-missing-attachment-{}.txt",
             std::process::id()
@@ -310,7 +310,7 @@ mod tests {
             .attachment(Attachment::from_path_lazy(&path).unwrap());
         fs::remove_file(&path).unwrap();
 
-        let err = mailer.build_message(&email).unwrap_err();
+        let err = mailer.build_message(&email).await.unwrap_err();
         assert!(matches!(err, MailError::AttachmentFileNotFound(_)));
     }
 }

@@ -6,6 +6,15 @@ use std::sync::Arc;
 
 use crate::error::MailError;
 
+fn attachment_io_error(path: impl Into<String>, source: std::io::Error) -> MailError {
+    let path = path.into();
+    if source.kind() == std::io::ErrorKind::NotFound {
+        MailError::AttachmentFileNotFound(path)
+    } else {
+        MailError::AttachmentReadError { path, source }
+    }
+}
+
 mod shared_bytes_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::sync::Arc;
@@ -116,16 +125,8 @@ impl Attachment {
             .unwrap_or("attachment")
             .to_string();
 
-        let data = std::fs::read(path).map_err(|source| {
-            if source.kind() == std::io::ErrorKind::NotFound {
-                MailError::AttachmentFileNotFound(path.display().to_string())
-            } else {
-                MailError::AttachmentReadError {
-                    path: path.display().to_string(),
-                    source,
-                }
-            }
-        })?;
+        let data = std::fs::read(path)
+            .map_err(|source| attachment_io_error(path.display().to_string(), source))?;
 
         let content_type = mime_guess::from_path(path)
             .first_or_octet_stream()
@@ -259,16 +260,22 @@ impl Attachment {
     pub fn get_data(&self) -> Result<Vec<u8>, MailError> {
         if let Some(ref path) = self.path {
             // Lazy load from path
-            std::fs::read(path).map_err(|source| {
-                if source.kind() == std::io::ErrorKind::NotFound {
-                    MailError::AttachmentFileNotFound(path.clone())
-                } else {
-                    MailError::AttachmentReadError {
-                        path: path.clone(),
-                        source,
-                    }
-                }
-            })
+            std::fs::read(path).map_err(|source| attachment_io_error(path.clone(), source))
+        } else if self.data.is_empty() && self.path.is_none() {
+            Err(MailError::AttachmentMissingContent(self.filename.clone()))
+        } else {
+            Ok(self.data.to_vec())
+        }
+    }
+
+    /// Get the attachment data without blocking the async executor.
+    #[cfg(feature = "_async_attachment_io")]
+    pub(crate) async fn get_data_async(&self) -> Result<Vec<u8>, MailError> {
+        if let Some(ref path) = self.path {
+            let path = path.clone();
+            tokio::fs::read(&path)
+                .await
+                .map_err(|source| attachment_io_error(path, source))
         } else if self.data.is_empty() && self.path.is_none() {
             Err(MailError::AttachmentMissingContent(self.filename.clone()))
         } else {
@@ -285,6 +292,14 @@ impl Attachment {
         Ok(base64::engine::general_purpose::STANDARD.encode(&data))
     }
 
+    /// Get the attachment data as base64 without blocking the async executor.
+    #[cfg(feature = "_async_attachment_io")]
+    pub(crate) async fn base64_data_async(&self) -> Result<String, MailError> {
+        use base64::Engine;
+        let data = self.get_data_async().await?;
+        Ok(base64::engine::general_purpose::STANDARD.encode(&data))
+    }
+
     /// Get the size in bytes.
     ///
     /// For path-based attachments, returns 0 (file not loaded yet).
@@ -296,16 +311,8 @@ impl Attachment {
     /// Get the accurate size, loading from path if necessary.
     pub fn get_size(&self) -> Result<usize, MailError> {
         if let Some(ref path) = self.path {
-            let metadata = std::fs::metadata(path).map_err(|source| {
-                if source.kind() == std::io::ErrorKind::NotFound {
-                    MailError::AttachmentFileNotFound(path.clone())
-                } else {
-                    MailError::AttachmentReadError {
-                        path: path.clone(),
-                        source,
-                    }
-                }
-            })?;
+            let metadata = std::fs::metadata(path)
+                .map_err(|source| attachment_io_error(path.clone(), source))?;
             Ok(metadata.len() as usize)
         } else {
             Ok(self.data.len())
@@ -367,5 +374,21 @@ mod tests {
     fn test_base64() {
         let attachment = Attachment::from_bytes("test.txt", b"Hello".to_vec());
         assert_eq!(attachment.base64_data().unwrap(), "SGVsbG8=");
+    }
+
+    #[cfg(feature = "_async_attachment_io")]
+    #[tokio::test]
+    async fn test_base64_data_async_reads_lazy_file() {
+        let path = std::env::temp_dir().join(format!(
+            "missive-lazy-attachment-async-{}.txt",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"async").unwrap();
+
+        let attachment = Attachment::from_path_lazy(&path).unwrap();
+
+        assert_eq!(attachment.base64_data_async().await.unwrap(), "YXN5bmM=");
+
+        std::fs::remove_file(&path).unwrap();
     }
 }
