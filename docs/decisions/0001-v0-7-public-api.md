@@ -211,8 +211,8 @@ This decision unblocks the v0.7 refactor sequence:
   option APIs.
 - `missive-wdl.8` and `missive-wdl.9` should encapsulate message fields and add
   the validated preparation model.
-- `missive-wdl.14` should evaluate and implement the static plus boxed provider
-  dispatch strategy.
+- `missive-wdl.14` should record the async dispatch decision and revisit the
+  static plus boxed provider split only if profiling justifies the migration.
 
 The existing 0.6 architecture notes remain useful as a description of the
 current implementation, but this decision is the target architecture for the
