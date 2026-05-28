@@ -276,7 +276,7 @@ impl MailerConfig {
             #[cfg(feature = "jmap")]
             Self::Jmap(config) => Ok(Arc::new(config.into_mailer())),
             #[cfg(feature = "local")]
-            Self::Local => Ok(Arc::new(crate::local_mailer_from_global_storage())),
+            Self::Local => Ok(Arc::new(providers::LocalMailer::new())),
             Self::Logger { full: false } => Ok(Arc::new(providers::LoggerMailer::new())),
             Self::Logger { full: true } => Ok(Arc::new(providers::LoggerMailer::full())),
         }

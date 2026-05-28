@@ -115,7 +115,7 @@ Then configure per environment in `.env`:
 
 ```bash
 # ---- Missive Email ----
-# Development: local mailbox preview at /dev/mailbox
+# Development: local in-memory mailer
 EMAIL_PROVIDER=local
 EMAIL_FROM=noreply@example.com
 ```
@@ -455,25 +455,23 @@ View sent emails in your browser during development.
 The simplest option - runs on a separate port with no framework dependencies:
 
 ```rust
+use missive::providers::LocalMailer;
 use missive::preview::PreviewServer;
 
-// Initialize mailer from environment variables
-missive::init().ok();
+let mailer = LocalMailer::new();
+let storage = mailer.storage();
+missive::configure(mailer);
 
-// Start preview server if using local provider
-if let Some(storage) = missive::local_storage() {
-    PreviewServer::new("127.0.0.1:3025", storage)
-        .expect("Failed to start preview server")
-        .spawn();
-    
-    println!("Preview UI at http://127.0.0.1:3025");
-}
+PreviewServer::new("127.0.0.1:3025", storage)
+    .expect("Failed to start preview server")
+    .spawn();
+
+println!("Preview UI at http://127.0.0.1:3025");
 ```
 
-Set in your `.env`:
+If your preview emails omit a `from` address, set a default sender:
 
 ```bash
-EMAIL_PROVIDER=local
 EMAIL_FROM=noreply@example.com
 ```
 
@@ -482,18 +480,19 @@ EMAIL_FROM=noreply@example.com
 Embed the preview UI into your Axum app:
 
 ```rust
+use missive::providers::LocalMailer;
 use missive::preview::mailbox_router;
 
-missive::init().ok();
+let mailer = LocalMailer::new();
+let storage = mailer.storage();
+missive::configure(mailer);
 
 let mut app = Router::new()
     .route("/", get(home));
 
-if let Some(storage) = missive::local_storage() {
-    // Use .nest_service() if your app has custom state (Router<AppState>)
-    // Use .nest() if your app is Router<()>
-    app = app.nest_service("/dev/mailbox", mailbox_router(storage));
-}
+// Use .nest_service() if your app has custom state (Router<AppState>)
+// Use .nest() if your app is Router<()>
+app = app.nest_service("/dev/mailbox", mailbox_router(storage));
 ```
 
 Then visit `http://localhost:3000/dev/mailbox`. See [docs/preview.md](./docs/preview.md) for more details.

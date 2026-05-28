@@ -164,31 +164,26 @@ pub use storage::{MemoryStorage, Storage, StoredEmail};
 /// Global mailer - swappable for testing
 static MAILER: RwLock<Option<Arc<dyn Mailer>>> = RwLock::new(None);
 
-/// Global shared storage for LocalMailer (used by preview UI).
-#[cfg(feature = "local")]
-static LOCAL_STORAGE: std::sync::OnceLock<Arc<MemoryStorage>> = std::sync::OnceLock::new();
-
-/// Get the shared storage for the LocalMailer.
+/// Get legacy global storage for the LocalMailer.
 ///
-/// Use this to mount the preview UI when using `EMAIL_PROVIDER=local`.
+/// The preview UI no longer uses process-global storage. Create a
+/// [`providers::LocalMailer`], call [`providers::LocalMailer::storage`], and
+/// pass that storage to the preview server or router explicitly.
 ///
 /// ```rust,ignore
-/// use missive::local_storage;
+/// use missive::providers::LocalMailer;
 /// use missive::preview::mailbox_router;
 ///
-/// if let Some(storage) = local_storage() {
-///     app = app.nest("/dev/mailbox", mailbox_router(storage));
-/// }
+/// let mailer = LocalMailer::new();
+/// let app = app.nest("/dev/mailbox", mailbox_router(mailer.storage()));
 /// ```
 #[cfg(feature = "local")]
+#[deprecated(
+    since = "0.7.0",
+    note = "use LocalMailer::storage() and pass the storage to preview explicitly"
+)]
 pub fn local_storage() -> Option<Arc<MemoryStorage>> {
-    LOCAL_STORAGE.get().cloned()
-}
-
-#[cfg(feature = "local")]
-pub(crate) fn local_mailer_from_global_storage() -> providers::LocalMailer {
-    let storage = LOCAL_STORAGE.get_or_init(MemoryStorage::shared);
-    providers::LocalMailer::with_storage(Arc::clone(storage))
+    None
 }
 
 /// Get the default from address from environment.

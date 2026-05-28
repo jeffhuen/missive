@@ -52,3 +52,12 @@ fn email_client_from_env_with_is_testable_without_process_env_mutation() {
 
     assert_eq!(client.mailer().provider_name(), "local");
 }
+
+#[test]
+fn local_env_mailer_does_not_publish_global_preview_storage() {
+    let _mailer = MailerConfig::Local.into_mailer().unwrap();
+
+    #[allow(deprecated)]
+    let storage = missive::local_storage();
+    assert!(storage.is_none());
+}

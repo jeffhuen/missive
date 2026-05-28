@@ -58,13 +58,12 @@ missive::deliver()              http://127.0.0.1:3025
 
 When you send an email with `LocalMailer`, it's stored in `MemoryStorage`. The preview server reads from the same storage to display emails in the browser.
 
-### Environment Setup
+### Default Sender
 
-Add to your `.env` file:
+If your preview emails omit a `from` address, add a default sender to your
+environment:
 
 ```bash
-# Use LocalMailer (stores emails in memory)
-EMAIL_PROVIDER=local
 EMAIL_FROM=noreply@example.com
 ```
 
@@ -75,20 +74,21 @@ Here's a full working example with an async web app:
 ```rust
 use axum::{Router, routing::get};
 use missive::{Email, deliver};
+use missive::providers::LocalMailer;
 
 #[tokio::main]
 async fn main() {
-    // 1. Initialize mailer from environment (EMAIL_PROVIDER=local)
-    missive::init().expect("Failed to initialize mailer");
+    // 1. Create the local mailer and keep its preview storage
+    let mailer = LocalMailer::new();
+    let storage = mailer.storage();
+    missive::configure(mailer);
 
-    // 2. Start preview server if using local provider
-    if let Some(storage) = missive::local_storage() {
-        missive::preview::PreviewServer::new("127.0.0.1:3025", storage)
-            .expect("Failed to start preview server")
-            .spawn();
-        
-        println!("Preview UI at http://127.0.0.1:3025");
-    }
+    // 2. Start preview server with the same storage
+    missive::preview::PreviewServer::new("127.0.0.1:3025", storage)
+        .expect("Failed to start preview server")
+        .spawn();
+
+    println!("Preview UI at http://127.0.0.1:3025");
 
     // 3. Your app - emails sent here appear in the preview UI
     let app = Router::new()
@@ -156,9 +156,8 @@ use missive::preview::serve;
 
 fn main() -> std::io::Result<()> {
     let mailer = missive::providers::LocalMailer::new();
+    let storage = mailer.storage();
     missive::configure(mailer);
-
-    let storage = missive::local_storage().unwrap();
     
     println!("Preview server at http://127.0.0.1:3025");
     serve("127.0.0.1:3025", storage)  // Blocks forever
@@ -245,11 +244,13 @@ To mount the preview only when `LocalMailer` is configured (e.g., in development
 **Mutable binding:**
 
 ```rust
+let preview_storage = Some(mailer.storage());
+
 let mut app = Router::new()
     .route("/health", get(health))
     .nest("/api", api::router());
 
-if let Some(storage) = missive::local_storage() {
+if let Some(storage) = preview_storage {
     app = app.nest_service("/dev/mailbox", mailbox_router(storage));
 }
 
@@ -259,11 +260,13 @@ axum::serve(listener, app).await.unwrap();
 **Shadowing (avoids `mut`):**
 
 ```rust
+let preview_storage = Some(mailer.storage());
+
 let app = Router::new()
     .route("/health", get(health))
     .nest("/api", api::router());
 
-let app = if let Some(storage) = missive::local_storage() {
+let app = if let Some(storage) = preview_storage {
     app.nest_service("/dev/mailbox", mailbox_router(storage))
 } else {
     app
@@ -414,12 +417,14 @@ fn setup_app(storage: Arc<MemoryStorage>) -> Router {
 ### Using Environment Variables
 
 ```rust
-if std::env::var("ENABLE_MAILBOX_PREVIEW").is_ok() {
-    if let Some(storage) = missive::local_storage() {
-        // Axum: app = app.nest_service("/dev/mailbox", mailbox_router(storage));
-        // Standalone:
-        PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
-    }
+let preview_storage = std::env::var("ENABLE_MAILBOX_PREVIEW")
+    .ok()
+    .map(|_| mailer.storage());
+
+if let Some(storage) = preview_storage {
+    // Axum: app = app.nest_service("/dev/mailbox", mailbox_router(storage));
+    // Standalone:
+    PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
 }
 ```
 
@@ -456,8 +461,7 @@ The mailbox preview is for development only. In production:
 // Only compile preview code in dev builds
 #[cfg(debug_assertions)]
 {
-    if let Some(storage) = missive::local_storage() {
-        missive::preview::PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
-    }
+    let storage = mailer.storage();
+    missive::preview::PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
 }
 ```

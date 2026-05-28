@@ -70,6 +70,25 @@ async fn captures_sent_emails() {
 }
 
 #[tokio::test]
+async fn local_mailer_instances_have_independent_storage() {
+    let first = LocalMailer::new();
+    let second = LocalMailer::new();
+
+    first
+        .deliver(
+            &Email::new()
+                .from("tony.stark@example.com")
+                .to("steve.rogers@example.com")
+                .subject("First mailbox"),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(first.email_count(), 1);
+    assert_eq!(second.email_count(), 0);
+}
+
+#[tokio::test]
 async fn can_flush_emails() {
     let mailer = LocalMailer::new();
 

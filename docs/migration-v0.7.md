@@ -75,3 +75,21 @@ missive enables an internal Tokio-backed attachment I/O path and provider
 delivery uses that path instead of reading files directly on the async worker
 thread. The default feature set does not add Tokio solely for core attachment
 construction or inspection.
+
+## Local Preview Storage
+
+`local_storage()` no longer creates or returns a process-global mailbox. It is
+kept only as a deprecated compatibility facade and returns `None`.
+
+Create a `LocalMailer` explicitly and pass its storage to preview APIs:
+
+```rust
+use missive::providers::LocalMailer;
+use missive::preview::PreviewServer;
+
+let mailer = LocalMailer::new();
+let storage = mailer.storage();
+missive::configure(mailer);
+
+PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
+```
