@@ -39,7 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `PreparedEmail` validation before provider delivery so required sender,
   recipient, and address checks happen consistently before adapter code runs.
 - Added `EMAIL_PROVIDER=mailjet` and Mailjet credential auto-detection through
-  `MAILJET_API_KEY` and `MAILJET_SECRET_KEY`.
+  `MAILJET_API_KEY` and `MAILJET_SECRET_KEY`, fixing the provider selection gap
+  reported in [#3](https://github.com/jeffhuen/missive/issues/3) and porting
+  the intent of [#4](https://github.com/jeffhuen/missive/pull/4). Thanks
+  [@emmiegit](https://github.com/emmiegit).
 
 ### Changed
 
