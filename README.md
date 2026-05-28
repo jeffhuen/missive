@@ -36,6 +36,12 @@ client.deliver(email).await?;
 
 The legacy `deliver(&email)` global facade remains available for small apps and compatibility, but `EmailClient` is the primary API.
 
+If you want environment-based setup, opt into it explicitly:
+
+```rust
+let client = EmailClient::from_env()?;
+```
+
 ## Installation
 
 Add missive to your `Cargo.toml`:
@@ -136,15 +142,15 @@ Same compiled binary, different behavior per environment.
 
 ### Auto-Detection
 
-When `EMAIL_PROVIDER` is not set, Missive automatically detects which provider to use based on:
+`EmailClient::from_env()` and the compatibility global facade can load provider configuration from environment variables. When `EMAIL_PROVIDER` is not set, Missive detects which provider to use based on:
 
 1. **Available API keys** - checks for `RESEND_API_KEY`, `SENDGRID_API_KEY`, etc.
 2. **Enabled features** - only considers providers whose feature is compiled in
 3. **Fallback to local** - if the `local` feature is enabled and no API keys found
 
-**Detection order:** Resend → SendGrid → Postmark → Unsent → SMTP → Local
+**Detection order:** Resend → SendGrid → Postmark → Unsent → Brevo → Mailgun → Amazon SES → Mailtrap → SocketLabs → Gmail → Proton Bridge → JMAP → SMTP → Local
 
-This means zero-config for simple setups:
+This means minimal env setup for simple cases that explicitly call `EmailClient::from_env()`:
 
 ```toml
 missive = { version = "0.6.0", features = ["resend"] }
@@ -152,7 +158,7 @@ missive = { version = "0.6.0", features = ["resend"] }
 
 ```bash
 RESEND_API_KEY=re_xxxxx
-# No EMAIL_PROVIDER needed - Resend is auto-detected
+# No EMAIL_PROVIDER needed when using EmailClient::from_env()
 ```
 
 Use `EMAIL_PROVIDER` explicitly when:
@@ -712,6 +718,7 @@ let email = Email::new()
 | Function | Description |
 |----------|-------------|
 | `EmailClient::new(mailer)` | Create an explicit delivery client |
+| `EmailClient::from_env()` | Create a client from environment variables explicitly |
 | `client.with_default_from(addr)` | Set the sender used when an email omits `from` |
 | `client.deliver(email)` | Send one email |
 | `client.deliver_many(emails)` | Send multiple emails |
