@@ -83,17 +83,26 @@ pub enum MailError {
     TemplateRenderError(#[from] askama::Error),
 
     /// Email message construction failed with a lettre source error.
-    #[cfg(feature = "smtp")]
+    #[cfg(all(
+        feature = "smtp",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     #[error("Build error: {0}")]
     LettreBuildError(#[from] lettre::error::Error),
 
     /// SMTP transport failed with a lettre source error.
-    #[cfg(feature = "smtp")]
+    #[cfg(all(
+        feature = "smtp",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     #[error("Send error: {0}")]
     SmtpError(#[from] lettre::transport::smtp::Error),
 
     /// Lettre address parsing failed.
-    #[cfg(feature = "smtp")]
+    #[cfg(all(
+        feature = "smtp",
+        not(all(target_family = "wasm", target_os = "unknown"))
+    ))]
     #[error("Invalid email address: {0}")]
     LettreAddressError(#[from] lettre::address::AddressError),
 
@@ -146,11 +155,20 @@ impl MailError {
             MailError::TemplateError(_) => "template_error",
             #[cfg(feature = "templates")]
             MailError::TemplateRenderError(_) => "template_error",
-            #[cfg(feature = "smtp")]
+            #[cfg(all(
+                feature = "smtp",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             MailError::LettreBuildError(_) => "build_error",
-            #[cfg(feature = "smtp")]
+            #[cfg(all(
+                feature = "smtp",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             MailError::SmtpError(_) => "send_error",
-            #[cfg(feature = "smtp")]
+            #[cfg(all(
+                feature = "smtp",
+                not(all(target_family = "wasm", target_os = "unknown"))
+            ))]
             MailError::LettreAddressError(_) => "invalid_address",
             MailError::Internal(_) => "internal",
         }

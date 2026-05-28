@@ -74,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed WASM compile blockers from `uuid` randomness, Tokio filesystem features,
   native reqwest features, path-backed attachment I/O, JMAP's native cache lock,
   and native-only provider modules.
+- Tightened native-only WASM feature diagnostics and avoided pulling Tokio into
+  supported HTTP-provider WASM builds.
 
 ### Migration Guide
 

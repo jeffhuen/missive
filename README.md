@@ -204,6 +204,8 @@ documentation. The platform-specific dependency wiring still comes from the
 WASM-compatible providers: `resend`, `unsent`, `postmark`, `sendgrid`,
 `brevo`, `amazon_ses`, `mailtrap`, `mailjet`, `socketlabs`, `jmap`, `local`,
 and the always-available logger provider.
+HTTP providers use reqwest's WASM Fetch backend, so the host must provide a
+wasm-bindgen/fetch-compatible runtime.
 
 Native-only features on `wasm32-unknown-unknown`: `smtp`, `gmail`,
 `protonbridge`, `mailgun`, `preview`, `preview-axum`, and `preview-actix`.

@@ -51,6 +51,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm
       - run: cargo check --target wasm32-unknown-unknown --no-default-features --features "wasm,resend,unsent,postmark,sendgrid,brevo,amazon_ses,mailtrap,mailjet,socketlabs,jmap,local"
+      - name: Native-only feature diagnostics
+        run: |
+          set +e
+          output=$(cargo check --target wasm32-unknown-unknown --no-default-features --features "wasm,smtp" 2>&1)
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          printf '%s\n' "$output" | grep -F "native-only on wasm32-unknown-unknown"
+          ! printf '%s\n' "$output" | grep -F "unresolved module or unlinked crate"
+      - name: Supported WASM providers avoid Tokio
+        run: |
+          tree=$(cargo tree --target wasm32-unknown-unknown --no-default-features --features "wasm,resend" --edges normal)
+          ! printf '%s\n' "$tree" | grep -F "tokio v"
 
   audit:
     name: Security Audit
