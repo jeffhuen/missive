@@ -17,7 +17,8 @@
 use async_trait::async_trait;
 use lettre::{
     message::{
-        header::ContentType, Attachment as LettreAttachment, Mailbox, MultiPart, SinglePart,
+        header::{ContentType, HeaderName, HeaderValue},
+        Attachment as LettreAttachment, Mailbox, MultiPart, SinglePart,
     },
     transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
@@ -83,10 +84,11 @@ impl SmtpMailer {
             builder = builder.reply_to(address_to_mailbox(reply_to)?);
         }
 
-        // Custom headers - note: lettre requires implementing Header trait for custom headers.
-        // For now, we skip custom headers in SMTP. Use provider_options for SMTP-specific headers.
-        // TODO: Add support for common custom headers (X-Priority, X-Mailer, etc.)
-        let _ = &email.headers; // Acknowledge but don't use
+        for (name, value) in &email.headers {
+            let name = HeaderName::new_from_ascii(name.clone())
+                .map_err(|_| MailError::BuildError(format!("Invalid header name: {}", name)))?;
+            builder = builder.raw_header(HeaderValue::new(name, value.clone()));
+        }
 
         // Build body
         let message = if email.attachments.is_empty() {
@@ -259,7 +261,7 @@ impl SmtpBuilder {
 
 /// Convert our Address to lettre's Mailbox.
 fn address_to_mailbox(addr: &Address) -> Result<Mailbox, MailError> {
-    let email = addr.email.parse()?;
+    let email = addr.to_ascii()?.parse()?;
 
     Ok(Mailbox::new(addr.name.clone(), email))
 }
@@ -312,5 +314,21 @@ mod tests {
 
         let err = mailer.build_message(&email).await.unwrap_err();
         assert!(matches!(err, MailError::AttachmentFileNotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn build_message_includes_custom_headers() {
+        let mailer = SmtpMailer::localhost();
+        let email = Email::new()
+            .from("tony.stark@example.com")
+            .to("steve.rogers@example.com")
+            .subject("Hello, Avengers!")
+            .text_body("Hello")
+            .header("X-Campaign", "Avengers");
+
+        let message = mailer.build_message(&email).await.unwrap();
+        let raw = String::from_utf8(message.formatted()).unwrap();
+
+        assert!(raw.contains("\r\nX-Campaign: Avengers\r\n"));
     }
 }

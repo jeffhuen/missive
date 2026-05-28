@@ -124,7 +124,7 @@ impl SendGridMailer {
             if email.to.is_empty() {
                 return Err(MailError::MissingField("to"));
             }
-            vec![self.build_personalization(email)]
+            vec![self.build_personalization(email)?]
         };
 
         // Build content
@@ -150,27 +150,30 @@ impl SendGridMailer {
                     email
                         .reply_to
                         .iter()
-                        .map(|a| SendGridAddress {
-                            email: a.email.clone(),
-                            name: a.name.clone(),
+                        .map(|a| {
+                            Ok(SendGridAddress {
+                                email: a.to_ascii()?,
+                                name: a.name.clone(),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 ),
             )
         } else {
-            (
-                email.reply_to.first().map(|a| SendGridAddress {
-                    email: a.email.clone(),
+            let reply_to = match email.reply_to.first() {
+                Some(a) => Some(SendGridAddress {
+                    email: a.to_ascii()?,
                     name: a.name.clone(),
                 }),
-                None,
-            )
+                None => None,
+            };
+            (reply_to, None)
         };
 
         let mut request = SendGridRequest {
             personalizations,
             from: SendGridAddress {
-                email: from.email.clone(),
+                email: from.to_ascii()?,
                 name: from.name.clone(),
             },
             reply_to,
@@ -252,16 +255,18 @@ impl SendGridMailer {
         Ok(request)
     }
 
-    fn build_personalization(&self, email: &Email) -> SendGridPersonalization {
+    fn build_personalization(&self, email: &Email) -> Result<SendGridPersonalization, MailError> {
         let mut personalization = SendGridPersonalization {
             to: email
                 .to
                 .iter()
-                .map(|a| SendGridAddress {
-                    email: a.email.clone(),
-                    name: a.name.clone(),
+                .map(|a| {
+                    Ok(SendGridAddress {
+                        email: a.to_ascii()?,
+                        name: a.name.clone(),
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, MailError>>()?,
             cc: if email.cc.is_empty() {
                 None
             } else {
@@ -269,11 +274,13 @@ impl SendGridMailer {
                     email
                         .cc
                         .iter()
-                        .map(|a| SendGridAddress {
-                            email: a.email.clone(),
-                            name: a.name.clone(),
+                        .map(|a| {
+                            Ok(SendGridAddress {
+                                email: a.to_ascii()?,
+                                name: a.name.clone(),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 )
             },
             bcc: if email.bcc.is_empty() {
@@ -283,11 +290,13 @@ impl SendGridMailer {
                     email
                         .bcc
                         .iter()
-                        .map(|a| SendGridAddress {
-                            email: a.email.clone(),
-                            name: a.name.clone(),
+                        .map(|a| {
+                            Ok(SendGridAddress {
+                                email: a.to_ascii()?,
+                                name: a.name.clone(),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 )
             },
             dynamic_template_data: None,
@@ -306,7 +315,7 @@ impl SendGridMailer {
             personalization.substitutions = Some(subs.clone());
         }
 
-        personalization
+        Ok(personalization)
     }
 
     fn compress_body(&self, body: &[u8]) -> Result<Vec<u8>, MailError> {

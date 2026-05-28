@@ -625,6 +625,36 @@ async fn deliver_with_custom_headers_returns_ok() {
 }
 
 #[tokio::test]
+async fn deliver_punycodes_structured_address_domains() {
+    let server = MockServer::start().await;
+    let mailer = SendGridMailer::new("SG.test-api-key").base_url(server.uri());
+
+    let email = Email::new()
+        .from(("Tony, \"Iron\" Stark", "tony@例え.jp"))
+        .to(("Steve, Rogers", "steve@例え.jp"))
+        .subject("Hello!")
+        .text_body("Hello");
+
+    Mock::given(method("POST"))
+        .and(path("/mail/send"))
+        .and(body_json(json!({
+            "from": {"email": "tony@xn--r8jz45g.jp", "name": "Tony, \"Iron\" Stark"},
+            "personalizations": [{
+                "to": [{"email": "steve@xn--r8jz45g.jp", "name": "Steve, Rogers"}]
+            }],
+            "content": [{"type": "text/plain", "value": "Hello"}],
+            "subject": "Hello!"
+        })))
+        .respond_with(success_response())
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let result = mailer.deliver(&email).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
 async fn deliver_with_multiple_reply_to_returns_ok() {
     let server = MockServer::start().await;
     let mailer = SendGridMailer::new("SG.test-api-key").base_url(server.uri());

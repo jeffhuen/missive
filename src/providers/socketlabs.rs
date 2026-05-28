@@ -107,12 +107,12 @@ impl SocketLabsMailer {
         }
 
         let mut message = SocketLabsMessage {
-            from: SocketLabsAddress::from_address(from),
+            from: SocketLabsAddress::from_address(from)?,
             to: email
                 .to
                 .iter()
                 .map(SocketLabsAddress::from_address)
-                .collect(),
+                .collect::<Result<_, _>>()?,
             cc: if email.cc.is_empty() {
                 None
             } else {
@@ -121,7 +121,7 @@ impl SocketLabsMailer {
                         .cc
                         .iter()
                         .map(SocketLabsAddress::from_address)
-                        .collect(),
+                        .collect::<Result<_, _>>()?,
                 )
             },
             bcc: if email.bcc.is_empty() {
@@ -132,14 +132,18 @@ impl SocketLabsMailer {
                         .bcc
                         .iter()
                         .map(SocketLabsAddress::from_address)
-                        .collect(),
+                        .collect::<Result<_, _>>()?,
                 )
             },
             subject: email.subject.clone(),
             html_body: email.html_body.clone(),
             text_body: email.text_body.clone(),
             amp_body: None,
-            reply_to: email.reply_to.first().map(SocketLabsAddress::from_address),
+            reply_to: email
+                .reply_to
+                .first()
+                .map(SocketLabsAddress::from_address)
+                .transpose()?,
             attachments: None,
             custom_headers: None,
             api_template: None,
@@ -420,11 +424,11 @@ struct SocketLabsAddress {
 }
 
 impl SocketLabsAddress {
-    fn from_address(addr: &crate::Address) -> Self {
-        Self {
-            email_address: addr.email.clone(),
+    fn from_address(addr: &crate::Address) -> Result<Self, MailError> {
+        Ok(Self {
+            email_address: addr.to_ascii()?,
             friendly_name: addr.name.clone(),
-        }
+        })
     }
 }
 

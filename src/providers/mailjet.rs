@@ -101,17 +101,19 @@ impl MailjetMailer {
 
         let mut message = MailjetMessage {
             from: MailjetAddress {
-                email: from.email.clone(),
+                email: from.to_ascii()?,
                 name: from.name.clone().unwrap_or_default(),
             },
             to: email
                 .to
                 .iter()
-                .map(|a| MailjetAddress {
-                    email: a.email.clone(),
-                    name: a.name.clone().unwrap_or_default(),
+                .map(|a| {
+                    Ok(MailjetAddress {
+                        email: a.to_ascii()?,
+                        name: a.name.clone().unwrap_or_default(),
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, MailError>>()?,
             cc: if email.cc.is_empty() {
                 None
             } else {
@@ -119,11 +121,13 @@ impl MailjetMailer {
                     email
                         .cc
                         .iter()
-                        .map(|a| MailjetAddress {
-                            email: a.email.clone(),
-                            name: a.name.clone().unwrap_or_default(),
+                        .map(|a| {
+                            Ok(MailjetAddress {
+                                email: a.to_ascii()?,
+                                name: a.name.clone().unwrap_or_default(),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 )
             },
             bcc: if email.bcc.is_empty() {
@@ -133,17 +137,22 @@ impl MailjetMailer {
                     email
                         .bcc
                         .iter()
-                        .map(|a| MailjetAddress {
-                            email: a.email.clone(),
-                            name: a.name.clone().unwrap_or_default(),
+                        .map(|a| {
+                            Ok(MailjetAddress {
+                                email: a.to_ascii()?,
+                                name: a.name.clone().unwrap_or_default(),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 )
             },
-            reply_to: email.reply_to.first().map(|a| MailjetAddress {
-                email: a.email.clone(),
-                name: a.name.clone().unwrap_or_default(),
-            }),
+            reply_to: match email.reply_to.first() {
+                Some(a) => Some(MailjetAddress {
+                    email: a.to_ascii()?,
+                    name: a.name.clone().unwrap_or_default(),
+                }),
+                None => None,
+            },
             subject: email.subject.clone(),
             text_part: email.text_body.clone(),
             html_part: email.html_body.clone(),

@@ -93,3 +93,15 @@ missive::configure(mailer);
 
 PreviewServer::new("127.0.0.1:3025", storage)?.spawn();
 ```
+
+## Provider Address And Header Serialization
+
+Provider adapters now normalize outbound address domains with IDNA/Punycode
+before serialization. Providers that accept mailbox strings use RFC 5322-safe
+formatting, so display names with commas or quotes are quoted and escaped.
+Providers that accept structured `{ email, name }` objects keep names separate
+and punycode only the email domain.
+
+SMTP and Gmail/RFC 2822 delivery now include valid custom headers through
+lettre raw headers. Invalid custom header names fail message construction with
+`MailError::BuildError` instead of being ignored.

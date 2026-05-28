@@ -116,17 +116,19 @@ impl MailtrapMailer {
 
         let mut request = MailtrapRequest {
             from: MailtrapEmailItem {
-                email: from.email.clone(),
+                email: from.to_ascii()?,
                 name: from.name.clone(),
             },
             to: email
                 .to
                 .iter()
-                .map(|a| MailtrapEmailItem {
-                    email: a.email.clone(),
-                    name: a.name.clone(),
+                .map(|a| {
+                    Ok(MailtrapEmailItem {
+                        email: a.to_ascii()?,
+                        name: a.name.clone(),
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, MailError>>()?,
             cc: if email.cc.is_empty() {
                 None
             } else {
@@ -134,11 +136,13 @@ impl MailtrapMailer {
                     email
                         .cc
                         .iter()
-                        .map(|a| MailtrapEmailItem {
-                            email: a.email.clone(),
-                            name: a.name.clone(),
+                        .map(|a| {
+                            Ok(MailtrapEmailItem {
+                                email: a.to_ascii()?,
+                                name: a.name.clone(),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 )
             },
             bcc: if email.bcc.is_empty() {
@@ -148,11 +152,13 @@ impl MailtrapMailer {
                     email
                         .bcc
                         .iter()
-                        .map(|a| MailtrapEmailItem {
-                            email: a.email.clone(),
-                            name: a.name.clone(),
+                        .map(|a| {
+                            Ok(MailtrapEmailItem {
+                                email: a.to_ascii()?,
+                                name: a.name.clone(),
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<_, MailError>>()?,
                 )
             },
             subject: email.subject.clone(),
@@ -190,7 +196,7 @@ impl MailtrapMailer {
         // Build headers (including Reply-To)
         let mut headers = email.headers.clone();
         if let Some(reply_to) = email.reply_to.first() {
-            headers.insert("Reply-To".to_string(), reply_to.email.clone());
+            headers.insert("Reply-To".to_string(), reply_to.formatted_rfc5322_ascii()?);
         }
         if !headers.is_empty() {
             request.headers = Some(headers);

@@ -116,12 +116,12 @@ impl PostmarkMailer {
         }
 
         let mut request = PostmarkRequest {
-            from: from.formatted(),
+            from: from.formatted_rfc5322_ascii()?,
             to: email
                 .to
                 .iter()
-                .map(|a| a.formatted())
-                .collect::<Vec<_>>()
+                .map(|a| a.formatted_rfc5322_ascii())
+                .collect::<Result<Vec<_>, _>>()?
                 .join(", "),
             subject: if email.subject.is_empty() {
                 None
@@ -137,8 +137,8 @@ impl PostmarkMailer {
                     email
                         .cc
                         .iter()
-                        .map(|a| a.formatted())
-                        .collect::<Vec<_>>()
+                        .map(|a| a.formatted_rfc5322_ascii())
+                        .collect::<Result<Vec<_>, _>>()?
                         .join(", "),
                 )
             },
@@ -149,12 +149,16 @@ impl PostmarkMailer {
                     email
                         .bcc
                         .iter()
-                        .map(|a| a.formatted())
-                        .collect::<Vec<_>>()
+                        .map(|a| a.formatted_rfc5322_ascii())
+                        .collect::<Result<Vec<_>, _>>()?
                         .join(", "),
                 )
             },
-            reply_to: email.reply_to.first().map(|a| a.formatted()),
+            reply_to: email
+                .reply_to
+                .first()
+                .map(|a| a.formatted_rfc5322_ascii())
+                .transpose()?,
             tag: None,
             track_opens: None,
             track_links: None,

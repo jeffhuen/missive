@@ -36,7 +36,8 @@
 use async_trait::async_trait;
 use lettre::{
     message::{
-        header::ContentType, Attachment as LettreAttachment, Mailbox, MultiPart, SinglePart,
+        header::{ContentType, HeaderName, HeaderValue},
+        Attachment as LettreAttachment, Mailbox, MultiPart, SinglePart,
     },
     Message,
 };
@@ -114,6 +115,12 @@ impl GmailMailer {
         // Reply-to
         if let Some(reply_to) = email.reply_to.first() {
             builder = builder.reply_to(address_to_mailbox(reply_to)?);
+        }
+
+        for (name, value) in &email.headers {
+            let name = HeaderName::new_from_ascii(name.clone())
+                .map_err(|_| MailError::BuildError(format!("Invalid header name: {}", name)))?;
+            builder = builder.raw_header(HeaderValue::new(name, value.clone()));
         }
 
         // Build body
@@ -246,7 +253,7 @@ struct GmailResponse {
 
 /// Convert our Address to lettre's Mailbox.
 fn address_to_mailbox(addr: &Address) -> Result<Mailbox, MailError> {
-    let email = addr.email.parse()?;
+    let email = addr.to_ascii()?.parse()?;
 
     Ok(Mailbox::new(addr.name.clone(), email))
 }

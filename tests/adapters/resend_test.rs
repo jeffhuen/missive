@@ -272,6 +272,36 @@ async fn deliver_with_scheduled_at_returns_ok() {
 }
 
 #[tokio::test]
+async fn deliver_formats_named_and_idn_addresses_for_provider_api() {
+    let server = MockServer::start().await;
+    let mailer = ResendMailer::new("re_123456789").base_url(server.uri());
+
+    let email = Email::new()
+        .from(("Tony, \"Iron\" Stark", "tony@例え.jp"))
+        .to(("Steve, Rogers", "steve@例え.jp"))
+        .reply_to(("Pepper \"Rescue\" Potts", "pepper@例え.jp"))
+        .subject("Hello, Avengers!")
+        .text_body("Hello");
+
+    Mock::given(method("POST"))
+        .and(path("/emails"))
+        .and(body_json(json!({
+            "from": "\"Tony, \\\"Iron\\\" Stark\" <tony@xn--r8jz45g.jp>",
+            "to": ["\"Steve, Rogers\" <steve@xn--r8jz45g.jp>"],
+            "reply_to": "\"Pepper \\\"Rescue\\\" Potts\" <pepper@xn--r8jz45g.jp>",
+            "subject": "Hello, Avengers!",
+            "text": "Hello"
+        })))
+        .respond_with(success_response())
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let result = mailer.deliver(&email).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
 async fn deliver_with_custom_headers_returns_ok() {
     let server = MockServer::start().await;
     let mailer = ResendMailer::new("re_123456789").base_url(server.uri());

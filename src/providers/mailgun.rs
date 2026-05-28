@@ -116,14 +116,14 @@ impl MailgunMailer {
         let mut form = Form::new();
 
         // Required fields
-        form = form.text("from", from.formatted());
+        form = form.text("from", from.formatted_rfc5322_ascii()?);
         form = form.text(
             "to",
             email
                 .to
                 .iter()
-                .map(|a| a.formatted())
-                .collect::<Vec<_>>()
+                .map(|a| a.formatted_rfc5322_ascii())
+                .collect::<Result<Vec<_>, _>>()?
                 .join(", "),
         );
         form = form.text("subject", email.subject.clone());
@@ -143,8 +143,8 @@ impl MailgunMailer {
                 email
                     .cc
                     .iter()
-                    .map(|a| a.formatted())
-                    .collect::<Vec<_>>()
+                    .map(|a| a.formatted_rfc5322_ascii())
+                    .collect::<Result<Vec<_>, _>>()?
                     .join(", "),
             );
         }
@@ -154,15 +154,15 @@ impl MailgunMailer {
                 email
                     .bcc
                     .iter()
-                    .map(|a| a.formatted())
-                    .collect::<Vec<_>>()
+                    .map(|a| a.formatted_rfc5322_ascii())
+                    .collect::<Result<Vec<_>, _>>()?
                     .join(", "),
             );
         }
 
         // Reply-To (Mailgun uses h:Reply-To header)
         if let Some(reply_to) = email.reply_to.first() {
-            form = form.text("h:Reply-To", reply_to.email.clone());
+            form = form.text("h:Reply-To", reply_to.formatted_rfc5322_ascii()?);
         }
 
         // Custom headers

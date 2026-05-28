@@ -355,14 +355,14 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
     );
 
     // Headers
-    message.push_str(&format!("From: {}\r\n", from.formatted()));
+    message.push_str(&format!("From: {}\r\n", from.formatted_rfc5322_ascii()?));
     message.push_str(&format!(
         "To: {}\r\n",
         email
             .to
             .iter()
-            .map(|a| a.formatted())
-            .collect::<Vec<_>>()
+            .map(|a| a.formatted_rfc5322_ascii())
+            .collect::<Result<Vec<_>, _>>()?
             .join(", ")
     ));
 
@@ -372,8 +372,8 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
             email
                 .cc
                 .iter()
-                .map(|a| a.formatted())
-                .collect::<Vec<_>>()
+                .map(|a| a.formatted_rfc5322_ascii())
+                .collect::<Result<Vec<_>, _>>()?
                 .join(", ")
         ));
     }
@@ -383,7 +383,10 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
     // SES handles this via the raw message destinations
 
     if let Some(reply_to) = email.reply_to.first() {
-        message.push_str(&format!("Reply-To: {}\r\n", reply_to.formatted()));
+        message.push_str(&format!(
+            "Reply-To: {}\r\n",
+            reply_to.formatted_rfc5322_ascii()?
+        ));
     }
 
     message.push_str(&format!("Subject: {}\r\n", email.subject));

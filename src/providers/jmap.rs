@@ -64,9 +64,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+use crate::address::Address;
 use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
+
+fn jmap_address(addr: &Address) -> Result<Value, MailError> {
+    Ok(json!({
+        "name": addr.name.clone(),
+        "email": addr.to_ascii()?,
+    }))
+}
 
 /// JMAP email provider.
 ///
@@ -327,21 +335,13 @@ impl JmapMailer {
         }
 
         // Build address objects
-        let from_addrs: Vec<Value> = vec![json!({
-            "name": from.name,
-            "email": from.email,
-        })];
+        let from_addrs: Vec<Value> = vec![jmap_address(from)?];
 
         let to_addrs: Vec<Value> = email
             .to
             .iter()
-            .map(|a| {
-                json!({
-                    "name": a.name,
-                    "email": a.email,
-                })
-            })
-            .collect();
+            .map(jmap_address)
+            .collect::<Result<_, _>>()?;
 
         let cc_addrs: Option<Vec<Value>> = if email.cc.is_empty() {
             None
@@ -350,13 +350,8 @@ impl JmapMailer {
                 email
                     .cc
                     .iter()
-                    .map(|a| {
-                        json!({
-                            "name": a.name,
-                            "email": a.email,
-                        })
-                    })
-                    .collect(),
+                    .map(jmap_address)
+                    .collect::<Result<_, _>>()?,
             )
         };
 
@@ -367,13 +362,8 @@ impl JmapMailer {
                 email
                     .bcc
                     .iter()
-                    .map(|a| {
-                        json!({
-                            "name": a.name,
-                            "email": a.email,
-                        })
-                    })
-                    .collect(),
+                    .map(jmap_address)
+                    .collect::<Result<_, _>>()?,
             )
         };
 
@@ -384,13 +374,8 @@ impl JmapMailer {
                 email
                     .reply_to
                     .iter()
-                    .map(|a| {
-                        json!({
-                            "name": a.name,
-                            "email": a.email,
-                        })
-                    })
-                    .collect(),
+                    .map(jmap_address)
+                    .collect::<Result<_, _>>()?,
             )
         };
 

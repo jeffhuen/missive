@@ -171,8 +171,12 @@ impl ResendMailer {
         }
 
         let mut request = ResendRequest {
-            from: from.formatted(),
-            to: email.to.iter().map(|a| a.formatted()).collect(),
+            from: from.formatted_rfc5322_ascii()?,
+            to: email
+                .to
+                .iter()
+                .map(|a| a.formatted_rfc5322_ascii())
+                .collect::<Result<_, _>>()?,
             subject: if email.subject.is_empty() {
                 None
             } else {
@@ -183,14 +187,30 @@ impl ResendMailer {
             cc: if email.cc.is_empty() {
                 None
             } else {
-                Some(email.cc.iter().map(|a| a.formatted()).collect())
+                Some(
+                    email
+                        .cc
+                        .iter()
+                        .map(|a| a.formatted_rfc5322_ascii())
+                        .collect::<Result<_, _>>()?,
+                )
             },
             bcc: if email.bcc.is_empty() {
                 None
             } else {
-                Some(email.bcc.iter().map(|a| a.formatted()).collect())
+                Some(
+                    email
+                        .bcc
+                        .iter()
+                        .map(|a| a.formatted_rfc5322_ascii())
+                        .collect::<Result<_, _>>()?,
+                )
             },
-            reply_to: email.reply_to.first().map(|a| a.formatted()),
+            reply_to: email
+                .reply_to
+                .first()
+                .map(|a| a.formatted_rfc5322_ascii())
+                .transpose()?,
             headers: if email.headers.is_empty() {
                 None
             } else {

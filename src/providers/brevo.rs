@@ -99,19 +99,35 @@ impl BrevoMailer {
         }
 
         let mut request = BrevoRequest {
-            sender: prepare_sender(from, email),
-            to: email.to.iter().map(prepare_recipient).collect(),
+            sender: prepare_sender(from, email)?,
+            to: email
+                .to
+                .iter()
+                .map(prepare_recipient)
+                .collect::<Result<_, _>>()?,
             cc: if email.cc.is_empty() {
                 None
             } else {
-                Some(email.cc.iter().map(prepare_recipient).collect())
+                Some(
+                    email
+                        .cc
+                        .iter()
+                        .map(prepare_recipient)
+                        .collect::<Result<_, _>>()?,
+                )
             },
             bcc: if email.bcc.is_empty() {
                 None
             } else {
-                Some(email.bcc.iter().map(prepare_recipient).collect())
+                Some(
+                    email
+                        .bcc
+                        .iter()
+                        .map(prepare_recipient)
+                        .collect::<Result<_, _>>()?,
+                )
             },
-            reply_to: email.reply_to.first().map(prepare_recipient),
+            reply_to: email.reply_to.first().map(prepare_recipient).transpose()?,
             subject: if email.subject.is_empty() {
                 None
             } else {
@@ -168,35 +184,35 @@ fn is_template_sender(from: &crate::Address) -> bool {
     from.email == "TEMPLATE"
 }
 
-fn prepare_sender(from: &crate::Address, email: &Email) -> Option<BrevoSender> {
+fn prepare_sender(from: &crate::Address, email: &Email) -> Result<Option<BrevoSender>, MailError> {
     // When from email is "TEMPLATE", don't send sender - use template default
     if is_template_sender(from) {
-        return None;
+        return Ok(None);
     }
 
     // Check for sender_id provider option
     if let Some(sender_id) = email.provider_options.get("sender_id") {
         if let Some(id) = sender_id.as_i64() {
-            return Some(BrevoSender {
+            return Ok(Some(BrevoSender {
                 id: Some(id),
-                email: Some(from.email.clone()),
+                email: Some(from.to_ascii()?),
                 name: None,
-            });
+            }));
         }
     }
 
-    Some(BrevoSender {
+    Ok(Some(BrevoSender {
         id: None,
-        email: Some(from.email.clone()),
+        email: Some(from.to_ascii()?),
         name: from.name.clone(),
-    })
+    }))
 }
 
-fn prepare_recipient(addr: &crate::Address) -> BrevoRecipient {
-    BrevoRecipient {
-        email: addr.email.clone(),
+fn prepare_recipient(addr: &crate::Address) -> Result<BrevoRecipient, MailError> {
+    Ok(BrevoRecipient {
+        email: addr.to_ascii()?,
         name: addr.name.clone(),
-    }
+    })
 }
 
 #[async_trait]
@@ -270,7 +286,7 @@ impl Mailer for BrevoMailer {
         };
 
         let batch_request = BrevoBatchRequest {
-            sender: prepare_sender(from, first_email),
+            sender: prepare_sender(from, first_email)?,
             subject: if first_email.subject.is_empty() {
                 None
             } else {
@@ -294,7 +310,7 @@ impl Mailer for BrevoMailer {
             message_versions: emails
                 .iter()
                 .map(|email| prepare_message_version(email.as_email()))
-                .collect(),
+                .collect::<Result<_, _>>()?,
         };
 
         // If first email has no subject but template_id, that's fine
@@ -347,20 +363,36 @@ impl Mailer for BrevoMailer {
     }
 }
 
-fn prepare_message_version(email: &Email) -> BrevoMessageVersion {
-    BrevoMessageVersion {
-        to: email.to.iter().map(prepare_recipient).collect(),
+fn prepare_message_version(email: &Email) -> Result<BrevoMessageVersion, MailError> {
+    Ok(BrevoMessageVersion {
+        to: email
+            .to
+            .iter()
+            .map(prepare_recipient)
+            .collect::<Result<_, _>>()?,
         cc: if email.cc.is_empty() {
             None
         } else {
-            Some(email.cc.iter().map(prepare_recipient).collect())
+            Some(
+                email
+                    .cc
+                    .iter()
+                    .map(prepare_recipient)
+                    .collect::<Result<_, _>>()?,
+            )
         },
         bcc: if email.bcc.is_empty() {
             None
         } else {
-            Some(email.bcc.iter().map(prepare_recipient).collect())
+            Some(
+                email
+                    .bcc
+                    .iter()
+                    .map(prepare_recipient)
+                    .collect::<Result<_, _>>()?,
+            )
         },
-        reply_to: email.reply_to.first().map(prepare_recipient),
+        reply_to: email.reply_to.first().map(prepare_recipient).transpose()?,
         subject: if email.subject.is_empty() {
             None
         } else {
@@ -381,7 +413,7 @@ fn prepare_message_version(email: &Email) -> BrevoMessageVersion {
             .provider_options
             .get("params")
             .and_then(|v| v.as_object().map(|obj| obj.clone().into_iter().collect())),
-    }
+    })
 }
 
 // ============================================================================
