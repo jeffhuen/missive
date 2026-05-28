@@ -245,7 +245,7 @@ impl Mailer for BrevoMailer {
                 serde_json::json!({ "provider": "brevo" }),
             ))
         } else {
-            let error: BrevoError = response.json().await.unwrap_or(BrevoError {
+            let error: BrevoError = response.json().await.unwrap_or_else(|_| BrevoError {
                 code: "unknown".to_string(),
                 message: "Unknown error".to_string(),
             });
@@ -350,7 +350,7 @@ impl Mailer for BrevoMailer {
                 })
                 .collect())
         } else {
-            let error: BrevoError = response.json().await.unwrap_or(BrevoError {
+            let error: BrevoError = response.json().await.unwrap_or_else(|_| BrevoError {
                 code: "unknown".to_string(),
                 message: "Unknown error".to_string(),
             });

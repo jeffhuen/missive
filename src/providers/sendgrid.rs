@@ -403,7 +403,7 @@ impl Mailer for SendGridMailer {
                 serde_json::json!({ "provider": "sendgrid" }),
             ))
         } else {
-            let error: SendGridError = response.json().await.unwrap_or(SendGridError {
+            let error: SendGridError = response.json().await.unwrap_or_else(|_| SendGridError {
                 errors: vec![SendGridErrorDetail {
                     message: "Unknown error".to_string(),
                     field: None,
@@ -414,7 +414,7 @@ impl Mailer for SendGridMailer {
             let error_msg = error
                 .errors
                 .iter()
-                .map(|e| e.message.clone())
+                .map(|e| e.message.as_str())
                 .collect::<Vec<_>>()
                 .join("; ");
 

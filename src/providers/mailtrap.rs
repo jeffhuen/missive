@@ -253,7 +253,7 @@ impl Mailer for MailtrapMailer {
                 }),
             ))
         } else {
-            let error: MailtrapError = response.json().await.unwrap_or(MailtrapError {
+            let error: MailtrapError = response.json().await.unwrap_or_else(|_| MailtrapError {
                 errors: vec!["Unknown error".to_string()],
             });
             Err(MailError::provider_with_status(

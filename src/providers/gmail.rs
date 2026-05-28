@@ -53,6 +53,12 @@ use crate::mailer::{DeliveryResult, Mailer};
 const GMAIL_API_URL: &str =
     "https://www.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
 
+fn attachment_content_type(content_type: &str) -> ContentType {
+    content_type
+        .parse()
+        .unwrap_or_else(|_| "application/octet-stream".parse().expect("valid MIME type"))
+}
+
 /// Gmail API email provider.
 pub struct GmailMailer {
     access_token: String,
@@ -164,10 +170,7 @@ impl GmailMailer {
 
             for attachment in &email.attachments {
                 let data = attachment.get_data_async().await?;
-                let content_type: ContentType = attachment
-                    .content_type
-                    .parse()
-                    .unwrap_or(ContentType::TEXT_PLAIN);
+                let content_type = attachment_content_type(&attachment.content_type);
 
                 let lettre_attachment = match attachment.disposition {
                     AttachmentType::Inline => {
@@ -260,4 +263,30 @@ fn address_to_mailbox(addr: &Address) -> Result<Mailbox, MailError> {
     let email = addr.to_ascii()?.parse()?;
 
     Ok(Mailbox::new(addr.name.clone(), email))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Attachment, Email};
+
+    #[tokio::test]
+    async fn build_message_invalid_attachment_content_type_uses_octet_stream() {
+        let mailer = GmailMailer::new("test-token");
+        let email = Email::new()
+            .from("tony.stark@example.com")
+            .to("steve.rogers@example.com")
+            .subject("Hello, Avengers!")
+            .text_body("Hello")
+            .attachment(
+                Attachment::from_bytes("payload.bin", vec![0, 1, 2])
+                    .content_type("not a valid MIME type"),
+            );
+
+        let message = mailer.build_message(&email).await.unwrap();
+        let raw = String::from_utf8(message.formatted()).unwrap();
+
+        assert!(raw.contains("Content-Type: application/octet-stream"));
+        assert!(!raw.contains("Content-Type: text/plain; name=payload.bin"));
+    }
 }

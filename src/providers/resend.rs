@@ -301,7 +301,7 @@ impl Mailer for ResendMailer {
                 serde_json::json!({ "provider": "resend" }),
             ))
         } else {
-            let error: ResendError = response.json().await.unwrap_or(ResendError {
+            let error: ResendError = response.json().await.unwrap_or_else(|_| ResendError {
                 message: "Unknown error".to_string(),
                 name: None,
             });
@@ -376,7 +376,7 @@ impl Mailer for ResendMailer {
                 })
                 .collect())
         } else {
-            let error: ResendError = response.json().await.unwrap_or(ResendError {
+            let error: ResendError = response.json().await.unwrap_or_else(|_| ResendError {
                 message: "Unknown error".to_string(),
                 name: None,
             });

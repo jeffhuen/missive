@@ -282,12 +282,9 @@ impl Attachment {
     ///
     /// - `AttachmentFileNotFound` - File path doesn't exist
     /// - `AttachmentReadError` - Failed to read file
-    /// - `AttachmentMissingContent` - No data and no path provided
     pub fn get_data(&self) -> Result<Vec<u8>, MailError> {
         if let Some(ref path) = self.path {
             read_attachment_path(path)
-        } else if self.data.is_empty() && self.path.is_none() {
-            Err(MailError::AttachmentMissingContent(self.filename.clone()))
         } else {
             Ok(self.data.to_vec())
         }
@@ -298,8 +295,6 @@ impl Attachment {
     pub(crate) async fn get_data_async(&self) -> Result<Vec<u8>, MailError> {
         if let Some(ref path) = self.path {
             read_attachment_path_async(path).await
-        } else if self.data.is_empty() && self.path.is_none() {
-            Err(MailError::AttachmentMissingContent(self.filename.clone()))
         } else {
             Ok(self.data.to_vec())
         }

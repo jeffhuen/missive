@@ -277,11 +277,15 @@ impl Mailer for SocketLabsMailer {
                 ))
             }
         } else {
-            let error: SocketLabsResponse = response.json().await.unwrap_or(SocketLabsResponse {
-                error_code: "UnknownError".to_string(),
-                message_results: None,
-                transaction_receipt: None,
-            });
+            let error: SocketLabsResponse =
+                response
+                    .json()
+                    .await
+                    .unwrap_or_else(|_| SocketLabsResponse {
+                        error_code: "UnknownError".to_string(),
+                        message_results: None,
+                        transaction_receipt: None,
+                    });
             Err(MailError::provider_with_status(
                 "socketlabs",
                 format!("[{}] Request failed", error.error_code),
@@ -352,11 +356,15 @@ impl Mailer for SocketLabsMailer {
                 ))
             }
         } else {
-            let error: SocketLabsResponse = response.json().await.unwrap_or(SocketLabsResponse {
-                error_code: "UnknownError".to_string(),
-                message_results: None,
-                transaction_receipt: None,
-            });
+            let error: SocketLabsResponse =
+                response
+                    .json()
+                    .await
+                    .unwrap_or_else(|_| SocketLabsResponse {
+                        error_code: "UnknownError".to_string(),
+                        message_results: None,
+                        transaction_receipt: None,
+                    });
             Err(MailError::provider_with_status(
                 "socketlabs",
                 format!("[{}] Request failed", error.error_code),

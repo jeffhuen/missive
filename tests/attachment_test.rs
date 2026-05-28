@@ -120,6 +120,14 @@ fn get_data_returns_data() {
 }
 
 #[test]
+fn get_data_allows_zero_byte_attachments() {
+    let attachment = Attachment::from_bytes("empty.txt", Vec::new());
+
+    assert_eq!(attachment.get_data().unwrap(), b"");
+    assert_eq!(attachment.base64_data().unwrap(), "");
+}
+
+#[test]
 fn serde_keeps_attachment_data_field_shape() {
     let attachment = Attachment::from_bytes("test.txt", b"abc".to_vec());
     let value = serde_json::to_value(&attachment).unwrap();

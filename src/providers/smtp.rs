@@ -30,6 +30,12 @@ use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
+fn attachment_content_type(content_type: &str) -> ContentType {
+    content_type
+        .parse()
+        .unwrap_or_else(|_| "application/octet-stream".parse().expect("valid MIME type"))
+}
+
 /// SMTP email provider.
 pub struct SmtpMailer {
     transport: AsyncSmtpTransport<Tokio1Executor>,
@@ -131,10 +137,7 @@ impl SmtpMailer {
 
             for attachment in &email.attachments {
                 let data = attachment.get_data_async().await?;
-                let content_type: ContentType = attachment
-                    .content_type
-                    .parse()
-                    .unwrap_or(ContentType::TEXT_PLAIN);
+                let content_type = attachment_content_type(&attachment.content_type);
 
                 let lettre_attachment = match attachment.disposition {
                     AttachmentType::Inline => {
@@ -334,6 +337,26 @@ mod tests {
         let raw = String::from_utf8(message.formatted()).unwrap();
 
         assert!(raw.contains("\r\nX-Campaign: Avengers\r\n"));
+    }
+
+    #[tokio::test]
+    async fn build_message_invalid_attachment_content_type_uses_octet_stream() {
+        let mailer = SmtpMailer::localhost();
+        let email = Email::new()
+            .from("tony.stark@example.com")
+            .to("steve.rogers@example.com")
+            .subject("Hello, Avengers!")
+            .text_body("Hello")
+            .attachment(
+                Attachment::from_bytes("payload.bin", vec![0, 1, 2])
+                    .content_type("not a valid MIME type"),
+            );
+
+        let message = mailer.build_message(&email).await.unwrap();
+        let raw = String::from_utf8(message.formatted()).unwrap();
+
+        assert!(raw.contains("Content-Type: application/octet-stream"));
+        assert!(!raw.contains("Content-Type: text/plain; name=payload.bin"));
     }
 
     #[test]

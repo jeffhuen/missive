@@ -312,7 +312,7 @@ impl Mailer for MailjetMailer {
                 } else if let Some(errors) = &msg.errors {
                     let error_msg = errors
                         .iter()
-                        .map(|e| e.error_message.clone())
+                        .map(|e| e.error_message.as_str())
                         .collect::<Vec<_>>()
                         .join("; ");
                     return Err(MailError::provider_with_status(
@@ -333,7 +333,7 @@ impl Mailer for MailjetMailer {
                 if let Some(errors) = &msg.errors {
                     let error_msg = errors
                         .iter()
-                        .map(|e| e.error_message.clone())
+                        .map(|e| e.error_message.as_str())
                         .collect::<Vec<_>>()
                         .join("; ");
                     return Err(MailError::provider_with_status(

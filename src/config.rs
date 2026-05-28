@@ -20,6 +20,7 @@
     allow(dead_code, unused_variables)
 )]
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
@@ -116,7 +117,7 @@ impl MailerConfig {
         F: FnMut(&str) -> Option<String> + ?Sized,
     {
         let provider = match optional_var(get, "EMAIL_PROVIDER") {
-            Some(provider) => provider.to_lowercase(),
+            Some(provider) => Cow::Owned(provider.to_lowercase()),
             None => detect_provider_with(get)
                 .ok_or_else(|| {
                     MailError::Configuration(
@@ -124,10 +125,10 @@ impl MailerConfig {
                             .into(),
                     )
                 })?
-                .to_string(),
+                .into(),
         };
 
-        Self::for_provider_from_env(&provider, get)
+        Self::for_provider_from_env(provider.as_ref(), get)
     }
 
     #[allow(unused_variables)]
@@ -482,8 +483,8 @@ impl SmtpConfig {
             required_var(get, "SMTP_HOST")?,
             optional_port(get, "SMTP_PORT", 587)?,
         )?;
-        config.username = optional_var(get, "SMTP_USERNAME").filter(|value| !value.is_empty());
-        config.password = optional_var(get, "SMTP_PASSWORD").filter(|value| !value.is_empty());
+        config.username = optional_var(get, "SMTP_USERNAME");
+        config.password = optional_var(get, "SMTP_PASSWORD");
         config.tls = optional_smtp_tls(get, "SMTP_TLS")?;
         Ok(config)
     }
@@ -690,7 +691,7 @@ impl JmapConfig {
     {
         let url = required_var(get, "JMAP_URL")?;
         let auth = match optional_var(get, "JMAP_BEARER_TOKEN") {
-            Some(token) if !token.is_empty() => JmapAuthConfig::BearerToken(token),
+            Some(token) => JmapAuthConfig::BearerToken(token),
             _ => JmapAuthConfig::Basic {
                 username: required_var(get, "JMAP_USERNAME")?,
                 password: required_var(get, "JMAP_PASSWORD")?,

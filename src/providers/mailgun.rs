@@ -284,7 +284,7 @@ impl Mailer for MailgunMailer {
             let error_body = response.text().await.unwrap_or_default();
             let error_msg = serde_json::from_str::<MailgunError>(&error_body)
                 .map(|e| e.message)
-                .unwrap_or(error_body);
+                .unwrap_or_else(|_| error_body);
 
             Err(MailError::provider_with_status(
                 "mailgun",

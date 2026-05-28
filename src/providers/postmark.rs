@@ -299,7 +299,7 @@ impl Mailer for PostmarkMailer {
             let result: PostmarkResponse = response.json().await?;
             Ok(Self::parse_response(status, result))
         } else {
-            let error: PostmarkError = response.json().await.unwrap_or(PostmarkError {
+            let error: PostmarkError = response.json().await.unwrap_or_else(|_| PostmarkError {
                 error_code: 0,
                 message: "Unknown error".to_string(),
             });
@@ -361,7 +361,7 @@ impl Mailer for PostmarkMailer {
                 })
                 .collect())
         } else {
-            let error: PostmarkError = response.json().await.unwrap_or(PostmarkError {
+            let error: PostmarkError = response.json().await.unwrap_or_else(|_| PostmarkError {
                 error_code: 0,
                 message: "Unknown error".to_string(),
             });
