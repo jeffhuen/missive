@@ -31,12 +31,15 @@ SMTP_PASSWORD=your-api-key
 **Programmatic Configuration:**
 
 ```rust
+use missive::EmailClient;
 use missive::providers::SmtpMailer;
 
 let mailer = SmtpMailer::new("smtp.example.com", 587)
     .credentials("username", "password")
     .tls_required()  // or .tls_opportunistic() or .tls_none()
     .build();
+let client = EmailClient::new(mailer)
+    .with_default_from("noreply@example.com");
 ```
 
 ---
@@ -558,7 +561,7 @@ This provider uses the media upload approach (`uploadType=media`) with `Content-
 The `DeliveryResult` includes Gmail-specific data:
 
 ```rust
-let result = mailer.deliver(&email).await?;
+let result = client.deliver(email).await?;
 
 // Message ID from Gmail
 println!("Message ID: {}", result.message_id);

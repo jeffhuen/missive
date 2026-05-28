@@ -17,7 +17,7 @@ Email → Interceptor → Mailer → Provider
 Prevent accidentally emailing real users during development:
 
 ```rust
-use missive::{Address, Email, InterceptorExt};
+use missive::{Address, Email, EmailClient, InterceptorExt};
 use missive::providers::ResendMailer;
 
 let mailer = ResendMailer::new(api_key)
@@ -27,9 +27,11 @@ let mailer = ResendMailer::new(api_key)
             .put_cc(vec![])
             .put_bcc(vec![]))
     });
+let client = EmailClient::new(mailer)
+    .with_default_from("noreply@example.com");
 
 // All emails now go to the test address
-mailer.deliver(&email).await?;
+client.deliver(email).await?;
 ```
 
 ### Add tracking headers
@@ -208,12 +210,12 @@ If an interceptor returns `Err(...)`, the email is not sent and observers are no
 
 ## When NOT to use Interceptors
 
-For simple cases, just modify the email before calling `deliver()`:
+For simple cases, modify the email before calling `client.deliver(...)`:
 
 ```rust
 // This is fine for one-off modifications
 let email = email.header("X-Campaign", "welcome");
-deliver(&email).await?;
+client.deliver(email).await?;
 ```
 
 Use interceptors when:

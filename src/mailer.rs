@@ -42,6 +42,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::email::Email;
 use crate::error::MailError;
@@ -181,3 +182,49 @@ pub trait MailerExt: Mailer {
 
 // Auto-implement MailerExt for all Mailers
 impl<T: Mailer> MailerExt for T {}
+
+#[async_trait]
+impl<T: Mailer + ?Sized> Mailer for &T {
+    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+        (**self).deliver(email).await
+    }
+
+    fn validate_batch(&self, emails: &[Email]) -> Result<(), MailError> {
+        (**self).validate_batch(emails)
+    }
+
+    async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
+        (**self).deliver_many(emails).await
+    }
+
+    fn provider_name(&self) -> &'static str {
+        (**self).provider_name()
+    }
+
+    fn validate_config(&self) -> Result<(), MailError> {
+        (**self).validate_config()
+    }
+}
+
+#[async_trait]
+impl<T: Mailer + ?Sized> Mailer for Arc<T> {
+    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+        (**self).deliver(email).await
+    }
+
+    fn validate_batch(&self, emails: &[Email]) -> Result<(), MailError> {
+        (**self).validate_batch(emails)
+    }
+
+    async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
+        (**self).deliver_many(emails).await
+    }
+
+    fn provider_name(&self) -> &'static str {
+        (**self).provider_name()
+    }
+
+    fn validate_config(&self) -> Result<(), MailError> {
+        (**self).validate_config()
+    }
+}

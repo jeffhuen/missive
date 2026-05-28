@@ -4,36 +4,39 @@
 //!
 //! ## Quick Start
 //!
-//! Set environment variables:
-//! ```bash
-//! EMAIL_PROVIDER=resend
-//! RESEND_API_KEY=re_xxxxx
-//! EMAIL_FROM=noreply@example.com
-//! EMAIL_FROM_NAME=My App
-//! ```
-//!
-//! Send emails from anywhere:
+//! Create a client and pass it through your application state:
 //! ```rust,ignore
-//! use missive::{Email, deliver};
+//! use missive::{Email, EmailClient};
+//! use missive::providers::ResendMailer;
+//!
+//! let mailer = ResendMailer::new(std::env::var("RESEND_API_KEY")?);
+//! let client = EmailClient::new(mailer)
+//!     .with_default_from("noreply@example.com");
 //!
 //! let email = Email::new()
 //!     .to("user@example.com")
 //!     .subject("Welcome!")
 //!     .text_body("Hello");
 //!
-//! deliver(&email).await?;
+//! client.deliver(email).await?;
 //! ```
 //!
-//! That's it. No configuration code needed.
+//! The legacy `deliver(&email)` global facade remains available for small apps
+//! and compatibility, but `EmailClient` is the primary API.
 //!
-//! ## Per-Call Mailer Override
+//! ## Multiple Clients
 //!
 //! ```rust,ignore
-//! use missive::{Email, deliver_with};
+//! use missive::{Email, EmailClient};
 //! use missive::providers::ResendMailer;
 //!
-//! let mailer = ResendMailer::new("different_api_key");
-//! deliver_with(&email, &mailer).await?;
+//! let transactional = EmailClient::new(ResendMailer::new("transactional_key"))
+//!     .with_default_from("receipts@example.com");
+//! let marketing = EmailClient::new(ResendMailer::new("marketing_key"))
+//!     .with_default_from("news@example.com");
+//!
+//! transactional.deliver(receipt_email).await?;
+//! marketing.deliver(newsletter_email).await?;
 //! ```
 //!
 //! ## Environment Variables
@@ -109,6 +112,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod address;
 mod attachment;
+mod client;
 mod email;
 mod error;
 pub mod interceptor;
@@ -137,11 +141,11 @@ pub use template::{EmailTemplate, EmailTemplateExt};
 use parking_lot::RwLock;
 use std::env;
 use std::sync::Arc;
-use std::time::Instant;
 
 // Re-exports
 pub use address::{Address, ToAddress};
 pub use attachment::{Attachment, AttachmentType};
+pub use client::EmailClient;
 pub use email::Email;
 pub use error::MailError;
 pub use interceptor::{Interceptor, InterceptorExt, WithInterceptor};
@@ -757,29 +761,6 @@ pub fn init() -> Result<(), MailError> {
     Ok(())
 }
 
-/// Validate an email has required fields.
-fn validate(email: &Email) -> Result<(), MailError> {
-    if email.from.is_none() && default_from().is_none() {
-        return Err(MailError::MissingField("from"));
-    }
-    if email.to.is_empty() {
-        return Err(MailError::MissingField("to"));
-    }
-    Ok(())
-}
-
-/// Prepare email by adding default from address if needed.
-fn prepare_email(email: &Email) -> Email {
-    if email.from.is_none() {
-        if let Some(from) = default_from() {
-            let mut e = email.clone();
-            e.from = Some(from);
-            return e;
-        }
-    }
-    email.clone()
-}
-
 /// Deliver an email using the global mailer.
 ///
 /// Auto-configures from environment variables on first call.
@@ -797,73 +778,11 @@ fn prepare_email(email: &Email) -> Email {
 /// deliver(&email).await?;
 /// ```
 pub async fn deliver(email: &Email) -> Result<DeliveryResult, MailError> {
-    // Validate required fields early
-    validate(email)?;
-
     let mailer = get_mailer()?;
-    let provider = mailer.provider_name();
-    let email = prepare_email(email);
-    let recipient_count = email.all_recipients().len();
-    let attachment_count = email.attachments.len();
-
-    // Emit telemetry span
-    let span = tracing::info_span!(
-        "missive.deliver",
-        provider = provider,
-        recipient_count = recipient_count,
-        attachment_count = attachment_count,
-        status = tracing::field::Empty,
-        duration_ms = tracing::field::Empty,
-    );
-    let _guard = span.enter();
-
-    tracing::debug!("Delivering email");
-
-    let start = Instant::now();
-
-    let result = mailer.deliver(&email).await;
-    let duration = start.elapsed();
-    let duration_ms = duration.as_millis() as u64;
-    let status = if result.is_ok() { "success" } else { "error" };
-    span.record("status", status);
-    span.record("duration_ms", duration_ms);
-
-    // Record metrics
-    #[cfg(feature = "metrics")]
-    {
-        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
-            .increment(1);
-        metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider)
-            .record(duration.as_secs_f64());
-    }
-
-    match &result {
-        Ok(r) => {
-            tracing::info!(
-                provider = provider,
-                status = status,
-                recipient_count = recipient_count,
-                attachment_count = attachment_count,
-                duration_ms = duration_ms,
-                "Email delivered",
-            );
-            tracing::debug!(message_id = %r.message_id, "Provider message id");
-        }
-        Err(e) => {
-            tracing::error!(
-                provider = provider,
-                status = status,
-                recipient_count = recipient_count,
-                attachment_count = attachment_count,
-                duration_ms = duration_ms,
-                error_kind = e.kind(),
-                "Email delivery failed",
-            );
-            tracing::debug!(error = %e, "Email delivery error details");
-        }
-    }
-
-    result
+    EmailClient::new(mailer)
+        .with_optional_default_from(default_from())
+        .deliver(email.clone())
+        .await
 }
 
 /// Deliver an email using a specific mailer (per-call override).
@@ -885,108 +804,19 @@ pub async fn deliver_with<M: Mailer>(
     email: &Email,
     mailer: &M,
 ) -> Result<DeliveryResult, MailError> {
-    // Validate required fields early
-    validate(email)?;
-
-    let provider = mailer.provider_name();
-    let email = prepare_email(email);
-    let recipient_count = email.all_recipients().len();
-    let attachment_count = email.attachments.len();
-
-    // Emit telemetry span
-    let span = tracing::info_span!(
-        "missive.deliver",
-        provider = provider,
-        recipient_count = recipient_count,
-        attachment_count = attachment_count,
-        status = tracing::field::Empty,
-        duration_ms = tracing::field::Empty,
-    );
-    let _guard = span.enter();
-
-    tracing::debug!("Delivering email");
-
-    let start = Instant::now();
-
-    let result = mailer.deliver(&email).await;
-    let duration = start.elapsed();
-    let duration_ms = duration.as_millis() as u64;
-    let status = if result.is_ok() { "success" } else { "error" };
-    span.record("status", status);
-    span.record("duration_ms", duration_ms);
-
-    // Record metrics
-    #[cfg(feature = "metrics")]
-    {
-        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
-            .increment(1);
-        metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider)
-            .record(duration.as_secs_f64());
-    }
-
-    match &result {
-        Ok(r) => {
-            tracing::info!(
-                provider = provider,
-                status = status,
-                recipient_count = recipient_count,
-                attachment_count = attachment_count,
-                duration_ms = duration_ms,
-                "Email delivered",
-            );
-            tracing::debug!(message_id = %r.message_id, "Provider message id");
-        }
-        Err(e) => {
-            tracing::error!(
-                provider = provider,
-                status = status,
-                recipient_count = recipient_count,
-                attachment_count = attachment_count,
-                duration_ms = duration_ms,
-                error_kind = e.kind(),
-                "Email delivery failed",
-            );
-            tracing::debug!(error = %e, "Email delivery error details");
-        }
-    }
-
-    result
+    EmailClient::new(mailer)
+        .with_optional_default_from(default_from())
+        .deliver(email.clone())
+        .await
 }
 
 /// Deliver multiple emails using the global mailer.
 pub async fn deliver_many(emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
-    // Validate all emails first
-    for email in emails {
-        validate(email)?;
-    }
-
     let mailer = get_mailer()?;
-    let provider = mailer.provider_name();
-    let count = emails.len();
-    let emails: Vec<Email> = emails.iter().map(prepare_email).collect();
-
-    let span = tracing::info_span!("missive.deliver_many", provider = provider, count = count,);
-    let _guard = span.enter();
-
-    #[cfg(feature = "metrics")]
-    let start = Instant::now();
-
-    let result = mailer.deliver_many(&emails).await;
-
-    // Record metrics
-    #[cfg(feature = "metrics")]
-    {
-        let duration = start.elapsed().as_secs_f64();
-        let status = if result.is_ok() { "success" } else { "error" };
-        metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
-            .increment(count as u64);
-        metrics::counter!("missive_batch_total", "provider" => provider, "status" => status)
-            .increment(1);
-        metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider, "batch" => "true").record(duration);
-        metrics::histogram!("missive_batch_size", "provider" => provider).record(count as f64);
-    }
-
-    result
+    EmailClient::new(mailer)
+        .with_optional_default_from(default_from())
+        .deliver_many(emails.to_vec())
+        .await
 }
 
 // ============================================================================
@@ -1034,6 +864,7 @@ pub mod prelude {
     pub use crate::Attachment;
     pub use crate::DeliveryResult;
     pub use crate::Email;
+    pub use crate::EmailClient;
     pub use crate::MailError;
     pub use crate::Mailer;
     pub use crate::ToAddress;

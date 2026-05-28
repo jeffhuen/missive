@@ -8,7 +8,7 @@ Compose, deliver, test, and preview emails in Rust. Plug and play.
   <img alt="Mailbox Preview UI" src="https://raw.githubusercontent.com/jeffhuen/missive/main/docs/images/preview-dark.webp">
 </picture>
 
-Missive comes with adapters for popular transactional email providers including Amazon SES, Gmail, JMAP, Mailgun, Resend, SendGrid, Postmark, Proton Bridge, SocketLabs, SMTP, and more. For local development, it includes an in-memory mailbox with a web-based preview UI, plus a logger provider for debugging. No initialization code required for most setups.
+Missive comes with adapters for popular transactional email providers including Amazon SES, Gmail, JMAP, Mailgun, Resend, SendGrid, Postmark, Proton Bridge, SocketLabs, SMTP, and more. For local development, it includes an in-memory mailbox with a web-based preview UI, plus a logger provider for debugging.
 
 ## Requirements
 
@@ -16,29 +16,25 @@ Rust 1.75+ (async traits)
 
 ## Quick Start
 
-Add to your `.env`:
-
-```bash
-# ---- Missive Email ----
-EMAIL_PROVIDER=resend
-EMAIL_FROM=noreply@example.com
-RESEND_API_KEY=re_xxxxx
-```
-
-Send emails:
+Create an `EmailClient` with your provider and pass it through your application state:
 
 ```rust
-use missive::{Email, deliver};
+use missive::{Email, EmailClient};
+use missive::providers::ResendMailer;
+
+let mailer = ResendMailer::new(std::env::var("RESEND_API_KEY")?);
+let client = EmailClient::new(mailer)
+    .with_default_from("noreply@example.com");
 
 let email = Email::new()
     .to("user@example.com")
     .subject("Welcome!")
     .text_body("Thanks for signing up.");
 
-deliver(&email).await?;
+client.deliver(email).await?;
 ```
 
-That's it. No configuration code, no builder structs, no initialization.
+The legacy `deliver(&email)` global facade remains available for small apps and compatibility, but `EmailClient` is the primary API.
 
 ## Installation
 
@@ -376,17 +372,21 @@ let email = Email::new()
 Use `LocalMailer` to capture emails in tests:
 
 ```rust
-use missive::{Email, deliver_with, configure};
+use missive::{Email, EmailClient};
 use missive::providers::LocalMailer;
 use missive::testing::*;
 
 #[tokio::test]
 async fn test_welcome_email() {
     let mailer = LocalMailer::new();
-    configure(mailer.clone());
+    let client = EmailClient::new(mailer.clone())
+        .with_default_from("noreply@example.com");
 
-    // Your code that sends an email
-    send_welcome_email("user@example.com").await;
+    let email = Email::new()
+        .to("user@example.com")
+        .subject("Welcome")
+        .text_body("Thanks for signing up.");
+    client.deliver(email).await.unwrap();
 
     // Assertions
     assert_email_sent(&mailer);
@@ -415,9 +415,11 @@ async fn test_welcome_email() {
 
 ```rust
 let mailer = LocalMailer::new();
+let client = EmailClient::new(mailer.clone())
+    .with_default_from("noreply@example.com");
 mailer.set_failure("SMTP connection refused");
 
-let result = deliver_with(&email, &mailer).await;
+let result = client.deliver(email).await;
 assert!(result.is_err());
 ```
 
@@ -530,32 +532,34 @@ let mailer = ResendMailer::new(api_key)
 
 See [docs/interceptors.md](./docs/interceptors.md) for more examples including development redirects and multi-tenant branding.
 
-## Per-Call Mailer Override
+## Multiple Clients
 
-Override the global mailer for specific emails:
+Use separate clients when different mailers or sender defaults are needed:
 
 ```rust
-use missive::{Email, deliver_with};
+use missive::{Email, EmailClient};
 use missive::providers::ResendMailer;
 
 // Use a different API key for this one email
-let special_mailer = ResendMailer::new("different_api_key");
+let special_client = EmailClient::new(ResendMailer::new("different_api_key"))
+    .with_default_from("vip@example.com");
 
 let email = Email::new()
     .to("vip@example.com")
     .subject("Special delivery");
 
-deliver_with(&email, &special_mailer).await?;
+special_client.deliver(email).await?;
 ```
 
 ## Async Emails
 
-Missive's `deliver()` is already async. For fire-and-forget sending:
+Missive delivery is async. For fire-and-forget sending:
 
 ```rust
 // Using tokio::spawn
+let client = client.clone();
 tokio::spawn(async move {
-    if let Err(e) = deliver(&email).await {
+    if let Err(e) = client.deliver(email).await {
         tracing::error!("Failed to send email: {}", e);
     }
 });
@@ -565,6 +569,7 @@ For reliable delivery, use a job queue like [apalis](https://github.com/geofmure
 
 ```rust
 use apalis::prelude::*;
+use missive::{EmailClient, Mailer};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SendEmailJob {
@@ -573,13 +578,17 @@ struct SendEmailJob {
     body: String,
 }
 
-async fn send_email(job: SendEmailJob, _ctx: JobContext) -> Result<(), Error> {
+async fn send_email<M: Mailer>(
+    job: SendEmailJob,
+    client: &EmailClient<M>,
+    _ctx: JobContext,
+) -> Result<(), Error> {
     let email = Email::new()
         .to(&job.to)
         .subject(&job.subject)
         .text_body(&job.body);
 
-    deliver(&email).await?;
+    client.deliver(email).await?;
     Ok(())
 }
 ```
@@ -617,7 +626,7 @@ If you don't install a recorder, metric calls are no-ops (zero overhead).
 Missive uses the `tracing` crate for observability. All email deliveries create spans:
 
 ```
-missive.deliver { provider="resend", to=["user@example.com"], subject="Hello" }
+missive.deliver { provider="resend", recipient_count=1, attachment_count=0, status="success", duration_ms=42 }
 ```
 
 Configure with any tracing subscriber:
@@ -631,7 +640,7 @@ tracing_subscriber::fmt::init();
 Delivery errors are returned to the caller - missive does not automatically retry or crash. Errors are logged via `tracing::error!` for observability.
 
 ```rust
-match deliver(&email).await {
+match client.deliver(email).await {
     Ok(result) => println!("Sent: {}", result.message_id),
     Err(e) => {
         // You decide: retry, alert, queue for later, ignore, etc.
@@ -643,9 +652,9 @@ match deliver(&email).await {
 Error variants for granular handling:
 
 ```rust
-use missive::{deliver, MailError};
+use missive::MailError;
 
-match deliver(&email).await {
+match client.deliver(email).await {
     Ok(result) => println!("Sent with ID: {}", result.message_id),
     Err(MailError::MissingField(field)) => println!("Missing: {}", field),
     Err(MailError::InvalidAddress(msg)) => println!("Bad address: {}", msg),
@@ -698,15 +707,17 @@ let email = Email::new()
 
 ## API Reference
 
-### Core Functions
+### Core API
 
 | Function | Description |
 |----------|-------------|
-| `deliver(&email)` | Send email using global mailer |
-| `deliver_with(&email, &mailer)` | Send email using specific mailer |
-| `deliver_many(&emails)` | Send multiple emails |
-| `configure(mailer)` | Set the global mailer |
-| `init()` | Initialize from environment variables |
+| `EmailClient::new(mailer)` | Create an explicit delivery client |
+| `client.with_default_from(addr)` | Set the sender used when an email omits `from` |
+| `client.deliver(email)` | Send one email |
+| `client.deliver_many(emails)` | Send multiple emails |
+| `deliver(&email)` | Compatibility facade using the global mailer |
+| `deliver_with(&email, &mailer)` | Compatibility helper for a specific mailer |
+| `configure(mailer)` | Set the global compatibility mailer |
 | `is_configured()` | Check if email is properly configured |
 
 ### Email Builder

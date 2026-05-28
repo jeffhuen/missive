@@ -14,7 +14,7 @@ missive = { version = "0.4", features = ["local"] }
 ## Basic Usage
 
 ```rust
-use missive::{Email, deliver_with, configure};
+use missive::{Email, EmailClient};
 use missive::providers::LocalMailer;
 use missive::testing::*;
 
@@ -22,9 +22,8 @@ use missive::testing::*;
 async fn test_sends_welcome_email() {
     // Create test mailer
     let mailer = LocalMailer::new();
-
-    // Configure as global mailer (optional)
-    configure(mailer.clone());
+    let client = EmailClient::new(mailer.clone())
+        .with_default_from("noreply@example.com");
 
     // Your code that sends email
     let email = Email::new()
@@ -32,7 +31,7 @@ async fn test_sends_welcome_email() {
         .subject("Welcome!")
         .text_body("Thanks for signing up.");
 
-    deliver_with(&email, &mailer).await.unwrap();
+    client.deliver(email).await.unwrap();
 
     // Assertions
     assert_email_sent(&mailer);
@@ -109,6 +108,8 @@ Test error handling by configuring the mailer to fail:
 #[tokio::test]
 async fn test_handles_email_failure() {
     let mailer = LocalMailer::new();
+    let client = EmailClient::new(mailer.clone())
+        .with_default_from("noreply@example.com");
 
     // Configure to fail
     mailer.set_failure("SMTP connection refused");
@@ -117,7 +118,7 @@ async fn test_handles_email_failure() {
         .to("user@example.com")
         .subject("Test");
 
-    let result = deliver_with(&email, &mailer).await;
+    let result = client.deliver(email).await;
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("connection refused"));
@@ -193,15 +194,16 @@ async fn test_email() {
 ### Shared Test Fixtures
 
 ```rust
-fn test_mailer() -> LocalMailer {
+fn test_client() -> (EmailClient<LocalMailer>, LocalMailer) {
     let mailer = LocalMailer::new();
-    missive::configure(mailer.clone());
-    mailer
+    let client = EmailClient::new(mailer.clone())
+        .with_default_from("noreply@example.com");
+    (client, mailer)
 }
 
 #[tokio::test]
 async fn test_one() {
-    let mailer = test_mailer();
+    let (client, mailer) = test_client();
     // ...
 }
 ```
@@ -216,7 +218,7 @@ mailer.clear();  // Remove all captured emails
 
 ## Best Practices
 
-1. **Use `deliver_with`** - Pass the test mailer explicitly for clarity
+1. **Use `EmailClient`** - Pass the test client explicitly for clarity
 2. **Assert specifics** - Check subject, recipients, not just "email sent"
 3. **Test error paths** - Use `set_failure()` to test error handling
 4. **Use `flush_emails`** - When testing multi-step flows
