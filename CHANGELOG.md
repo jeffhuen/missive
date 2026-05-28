@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `MailError` to preserve source errors for HTTP, SMTP, lettre build,
   template, and attachment I/O failures. Code that required cloning errors
   should store a string representation or wrap the error at the application
-  boundary.
+  boundary. `MailError` no longer implements `Clone`.
 - Changed `SmtpBuilder::build()` and `ProtonBridgeBuilder::build()` to return
   `Result<_, MailError>` so invalid relay/TLS setup cannot silently fall back
   to plaintext SMTP.

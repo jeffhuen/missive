@@ -167,13 +167,19 @@ impl AmazonSesMailer {
     async fn build_body(&self, email: &Email) -> Result<String, MailError> {
         let raw_message = build_mime_message(email).await?;
         let encoded = base64::engine::general_purpose::STANDARD.encode(&raw_message);
-        let url_encoded = urlencoding::encode(&encoded);
 
         let mut params = vec![
             ("Action".to_string(), ACTION.to_string()),
             ("Version".to_string(), VERSION.to_string()),
-            ("RawMessage.Data".to_string(), url_encoded.into_owned()),
+            ("RawMessage.Data".to_string(), encoded),
         ];
+
+        for (index, destination) in email.all_recipients().into_iter().enumerate() {
+            params.push((
+                format!("Destinations.member.{}", index + 1),
+                destination.to_ascii()?,
+            ));
+        }
 
         // Optional SES parameters
         if let Some(ref source) = self.ses_source {
@@ -216,7 +222,7 @@ impl AmazonSesMailer {
         params.sort_by(|a, b| a.0.cmp(&b.0));
         let body = params
             .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
+            .map(|(k, v)| format!("{}={}", k, urlencoding::encode(v)))
             .collect::<Vec<_>>()
             .join("&");
 
@@ -607,6 +613,28 @@ async fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
                 message.push_str("\r\n");
                 push_inline_attachments(&mut message, &related_boundary, email).await?;
             }
+            (Some(text), None) if has_inline => {
+                message.push_str(&format!(
+                    "Content-Type: multipart/related; boundary=\"{}\"\r\n\r\n",
+                    related_boundary
+                ));
+
+                message.push_str(&format!("--{}\r\n", related_boundary));
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+                message.push_str(text);
+                message.push_str("\r\n");
+                push_inline_attachments(&mut message, &related_boundary, email).await?;
+            }
+            (None, None) if has_inline => {
+                message.push_str(&format!(
+                    "Content-Type: multipart/related; boundary=\"{}\"\r\n\r\n",
+                    related_boundary
+                ));
+
+                message.push_str(&format!("--{}\r\n", related_boundary));
+                message.push_str("Content-Type: text/plain; charset=utf-8\r\n\r\n");
+                push_inline_attachments(&mut message, &related_boundary, email).await?;
+            }
             (Some(text), Some(html)) => {
                 // Multipart/alternative
                 message.push_str(&format!(
@@ -799,5 +827,49 @@ mod tests {
                 panic!("base64 line exceeded 76 characters: {line}");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn build_body_includes_explicit_destinations_for_bcc() {
+        let mailer = AmazonSesMailer::new("us-east-1", "key", "secret");
+        let email = email().cc("cc@example.com").bcc("blind@example.com");
+
+        let body = mailer.build_body(&email).await.unwrap();
+
+        assert!(body.contains("Destinations.member.1=recipient%40example.com"));
+        assert!(body.contains("Destinations.member.2=cc%40example.com"));
+        assert!(body.contains("Destinations.member.3=blind%40example.com"));
+    }
+
+    #[tokio::test]
+    async fn build_mime_keeps_text_only_inline_attachments() {
+        let attachment = Attachment::from_bytes("logo.png", b"image".to_vec())
+            .inline()
+            .content_id("logo");
+        let email = email().attachment(attachment);
+
+        let raw = String::from_utf8(build_mime_message(&email).await.unwrap()).unwrap();
+
+        assert!(raw.contains("Content-Disposition: inline; filename=\"logo.png\"\r\n"));
+        assert!(raw.contains("Content-ID: <logo>\r\n"));
+        assert!(!raw.contains("Content-Disposition: attachment; filename=\"logo.png\"\r\n"));
+    }
+
+    #[tokio::test]
+    async fn build_mime_keeps_empty_body_inline_attachments() {
+        let attachment = Attachment::from_bytes("logo.png", b"image".to_vec())
+            .inline()
+            .content_id("logo");
+        let email = Email::new()
+            .from("sender@example.com")
+            .to("recipient@example.com")
+            .subject("Hello")
+            .attachment(attachment);
+
+        let raw = String::from_utf8(build_mime_message(&email).await.unwrap()).unwrap();
+
+        assert!(raw.contains("Content-Disposition: inline; filename=\"logo.png\"\r\n"));
+        assert!(raw.contains("Content-ID: <logo>\r\n"));
+        assert!(!raw.contains("Content-Disposition: attachment; filename=\"logo.png\"\r\n"));
     }
 }

@@ -61,6 +61,9 @@ pub struct Email {
     pub(crate) private: HashMap<String, serde_json::Value>,
     /// Provider-specific options (e.g., tracking, tags, templates)
     pub(crate) provider_options: HashMap<String, serde_json::Value>,
+    /// Interceptor wrapper IDs already applied to this email.
+    #[serde(skip)]
+    pub(crate) applied_interceptors: Vec<usize>,
 }
 
 /// An email that has passed Missive's shared delivery validation.
@@ -105,6 +108,22 @@ impl PreparedEmail {
     #[cfg_attr(not(feature = "sendgrid"), allow(dead_code))]
     pub(crate) fn from_validated(email: Email) -> Self {
         Self { email }
+    }
+
+    pub(crate) fn interceptor_applied(&self, id: usize) -> bool {
+        self.email.interceptor_applied(id)
+    }
+}
+
+impl Email {
+    pub(crate) fn interceptor_applied(&self, id: usize) -> bool {
+        self.applied_interceptors.contains(&id)
+    }
+
+    pub(crate) fn mark_interceptor_applied(&mut self, id: usize) {
+        if !self.interceptor_applied(id) {
+            self.applied_interceptors.push(id);
+        }
     }
 }
 

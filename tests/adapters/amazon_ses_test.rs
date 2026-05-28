@@ -155,11 +155,11 @@ async fn optional_config_params_are_present_when_set() {
         .ses_from_arn("arn:aws:ses:us-east-1:123:identity/from.example.com")
         .ses_return_path_arn("arn:aws:ses:us-east-1:123:identity/return.example.com");
 
-    // Source parameter contains @ which should be included as-is
+    // Source is form encoded with the rest of the SES Query API params.
     Mock::given(method("POST"))
         .and(path("/"))
         .and(body_string_contains("Action=SendRawEmail"))
-        .and(body_string_contains("Source=aaa@bbb.com"))
+        .and(body_string_contains("Source=aaa%40bbb.com"))
         .respond_with(success_response())
         .expect(1)
         .mount(&server)
