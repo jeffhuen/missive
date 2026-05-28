@@ -11,6 +11,9 @@ categories = ["email", "web-programming"]
 [features]
 default = []
 
+# Target markers
+wasm = []  # Explicit opt-in marker for wasm32 docs/CI; target-specific deps do the platform wiring
+
 # Internal features (not for direct use)
 _http = ["dep:reqwest", "_async_attachment_io"]  # Shared HTTP client for API-based providers
 _aws_sig = ["dep:hmac", "dep:sha2", "dep:hex", "dep:urlencoding"]  # AWS Signature v4

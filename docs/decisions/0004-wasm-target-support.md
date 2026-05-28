@@ -29,8 +29,10 @@ References:
 
 ## Decision
 
-- Support `wasm32-unknown-unknown` through target-specific dependencies instead
-  of a `wasm` Cargo feature.
+- Expose a no-op `wasm` marker feature so users can opt in with
+  `features = ["wasm", "resend"]`.
+- Keep the actual platform wiring target-specific rather than feature-specific;
+  Cargo selects the WASM dependency graph from `--target wasm32-unknown-unknown`.
 - Keep native dependency features native: reqwest uses `rustls-tls` and
   `multipart` only off WASM, and Tokio filesystem support is native-only.
 - Enable WASM-compatible randomness/time behavior through target-specific
@@ -49,11 +51,15 @@ References:
 
 ## Consequences
 
-Users can compile Missive for WASM with normal provider features:
+Users can compile Missive for WASM with the `wasm` marker feature and a
+supported provider feature:
 
 ```toml
-missive = { version = "0.7.0", default-features = false, features = ["resend"] }
+missive = { version = "0.7.0", default-features = false, features = ["wasm", "resend"] }
 ```
+
+The `wasm` feature is intentionally a marker. It makes the public Cargo API
+clear, but it does not try to override Cargo's target resolution.
 
 WASM users should prefer explicit providers and `EmailClient::new(...)`.
 `EmailClient::from_env_with(...)` remains available for runtimes that expose

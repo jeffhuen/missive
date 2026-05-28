@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [@emmiegit](https://github.com/emmiegit).
 - Added `wasm32-unknown-unknown` compile support for core, logger, local, and
   HTTP JSON providers, addressing [#2](https://github.com/jeffhuen/missive/issues/2).
+- Added a public `wasm` marker feature so users can opt in with
+  `features = ["wasm", "resend"]` while the implementation remains
+  target-specific.
 
 ### Changed
 

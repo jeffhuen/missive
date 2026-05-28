@@ -49,8 +49,8 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --target wasm32-unknown-unknown --no-default-features
-      - run: cargo check --target wasm32-unknown-unknown --no-default-features --features "resend,unsent,postmark,sendgrid,brevo,amazon_ses,mailtrap,mailjet,socketlabs,jmap,local"
+      - run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm
+      - run: cargo check --target wasm32-unknown-unknown --no-default-features --features "wasm,resend,unsent,postmark,sendgrid,brevo,amazon_ses,mailtrap,mailjet,socketlabs,jmap,local"
 
   audit:
     name: Security Audit

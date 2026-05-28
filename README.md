@@ -182,12 +182,24 @@ or `preview-actix`; enable those features explicitly when you need them.
 ### WebAssembly
 
 Missive supports `wasm32-unknown-unknown` for browser, worker, and edge
-environments when you enable wasm-compatible providers explicitly:
+environments when you enable the `wasm` marker feature together with a
+wasm-compatible provider:
 
 ```toml
 [dependencies]
-missive = { version = "0.7.0", default-features = false, features = ["resend"] }
+missive = { version = "0.7.0", default-features = false, features = ["wasm", "resend"] }
 ```
+
+Then build for the WASM target:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo check --target wasm32-unknown-unknown --no-default-features --features "wasm,resend"
+```
+
+The `wasm` feature is an explicit opt-in marker for Cargo ergonomics and
+documentation. The platform-specific dependency wiring still comes from the
+`wasm32-unknown-unknown` target, so use it with `--target wasm32-unknown-unknown`.
 
 WASM-compatible providers: `resend`, `unsent`, `postmark`, `sendgrid`,
 `brevo`, `amazon_ses`, `mailtrap`, `mailjet`, `socketlabs`, `jmap`, `local`,
@@ -236,6 +248,7 @@ portable filesystem.
 
 | Feature | Description |
 |---------|-------------|
+| `wasm` | Marker feature for `wasm32-unknown-unknown` builds; combine with a supported provider |
 | `smtp` | SMTP provider via lettre |
 | `resend` | Resend API |
 | `sendgrid` | SendGrid API |
