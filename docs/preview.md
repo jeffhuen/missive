@@ -16,24 +16,25 @@ The preview UI requires `LocalMailer`, which stores emails in `MemoryStorage`.
 
 Choose the integration that fits your setup:
 
-| Feature | Use Case | Dependency |
-|---------|----------|------------|
-| `preview` | Standalone server (recommended) | `tiny_http` |
-| `preview-axum` | Embed in Axum app | `axum` |
-| `preview-actix` | Embed in Actix app | `actix-web` |
+| Feature | Use Case | Enables |
+|---------|----------|---------|
+| `preview` | Standalone server (recommended) | `local`, `tiny_http` |
+| `preview-axum` | Embed in Axum app | `local`, `axum`, `tower-http` |
+| `preview-actix` | Embed in Actix app | `local`, `actix-web` |
+| `dev` | Development bundle | `local`, `preview` |
 
 ```toml
 # Standalone server (simplest - no framework required)
-missive = { version = "0.4", features = ["preview"] }
+missive = { version = "0.6.2", features = ["preview"] }
 
 # Embed in Axum app
-missive = { version = "0.4", features = ["preview-axum"] }
+missive = { version = "0.6.2", features = ["preview-axum"] }
 
 # Embed in Actix app
-missive = { version = "0.4", features = ["preview-actix"] }
+missive = { version = "0.6.2", features = ["preview-actix"] }
 
 # Development bundle (local + standalone preview)
-missive = { version = "0.4", features = ["dev"] }
+missive = { version = "0.6.2", features = ["dev"] }
 ```
 
 ---
