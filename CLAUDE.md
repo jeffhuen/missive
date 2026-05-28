@@ -1,6 +1,6 @@
-# Agent Instructions
+# CLAUDE.md
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Operating Principles
 
@@ -13,50 +13,38 @@ Adapted from the concepts in
 - **Work against verifiable goals**: For non-trivial work, define what success means, choose the checks that prove it, and loop until those checks pass.
 - **Keep every changed line accountable**: Each edit should trace back to the user request, the Beads issue, or a necessary verification/cleanup step.
 
-> **Architecture in one line:** Issues live in a local Dolt database
-> (`.beads/dolt/`); cross-machine sync uses `bd dolt push/pull` (a
-> git-compatible protocol), stored under `refs/dolt/data` on your git
-> remote — separate from `refs/heads/*` where your code lives.
-> `.beads/issues.jsonl` is a passive export, not the wire protocol.
->
-> See [SYNC_CONCEPTS.md](https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md)
-> for the one-screen overview and anti-patterns (don't treat JSONL as the
-> source of truth; don't `bd import` during normal operation; don't
-> reach for third-party Dolt hosting before trying the default).
+## Build and Test
 
-## Quick Reference
+**All `cargo` commands require `--features full`** — tests, clippy, and most builds fail or skip coverage without it (e.g. `cargo test --features full`, `cargo clippy --features full`).
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
-```
+## Feature Flags
 
-## Non-Interactive Shell Commands
+This crate uses Cargo features for conditional compilation. Use `--features full` to enable everything. Key feature groups:
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+- **Providers**: `smtp`, `resend`, `sendgrid`, `postmark`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `unsent`
+- **Development**: `local` (in-memory storage + test assertions), `preview` (web UI), `dev` (both)
+- **Extras**: `templates` (Askama integration), `metrics` (Prometheus counters/histograms)
+- **Bundles**: `full` (all providers + templates), `dev` (local + preview)
 
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
+Internal features prefixed with `_` (`_http`, `_aws_sig`) are shared dependencies and not meant for direct use.
 
-**Use these forms instead:**
-```bash
-# Force overwrite without prompting
-cp -f source dest           # NOT: cp source dest
-mv -f source dest           # NOT: mv source dest
-rm -f file                  # NOT: rm file
+## Architecture
 
-# For recursive operations
-rm -rf directory            # NOT: rm -r directory
-cp -rf source dest          # NOT: cp -r source dest
-```
+For detailed architectural decisions and rationale, see `docs/architecture.md`.
 
-**Other commands that may prompt:**
-- `scp` - use `-o BatchMode=yes` for non-interactive
-- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
-- `apt-get` - use `-y` flag
-- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
+**Dynamic dispatch with `async_trait`**: The `Mailer` trait uses `#[async_trait]` instead of native async traits to enable `Arc<dyn Mailer>`, allowing runtime provider selection from environment variables. The heap allocation cost (~10ns) is negligible vs. network I/O (50-500ms). See `src/mailer.rs`.
+
+**Wrapper pattern for extensions**: Features like interceptors use the wrapper/decorator pattern — a struct that holds an inner `Mailer` and implements `Mailer` itself — enabling composition without modifying core types. See `src/interceptor.rs`.
+
+**Global mailer**: `deliver(&email)` uses a global mailer auto-configured from env vars; `deliver_with(&email, &mailer)` uses a specific instance; `configure(mailer)` sets the global manually. See `src/lib.rs`.
+
+## Environment Variables
+
+The library auto-configures from environment:
+- `EMAIL_PROVIDER` - Which provider to use (auto-detected if not set)
+- `EMAIL_FROM` / `EMAIL_FROM_NAME` - Default sender
+- Provider-specific: `RESEND_API_KEY`, `SENDGRID_API_KEY`, `SMTP_HOST`, etc.
+
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker
@@ -105,3 +93,13 @@ bd close <id>         # Complete work
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
