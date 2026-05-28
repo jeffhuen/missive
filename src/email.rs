@@ -2,9 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::Deref;
 
 use crate::address::{Address, ToAddress};
 use crate::attachment::Attachment;
+use crate::error::MailError;
 
 /// An email message.
 ///
@@ -59,6 +61,67 @@ pub struct Email {
     pub private: HashMap<String, serde_json::Value>,
     /// Provider-specific options (e.g., tracking, tags, templates)
     pub provider_options: HashMap<String, serde_json::Value>,
+}
+
+/// An email that has passed Missive's shared delivery validation.
+///
+/// Provider implementations receive `PreparedEmail` values so direct provider
+/// calls, `EmailClient`, and compatibility facades all pass through Missive's
+/// shared or provider-specific validation before adapter serialization runs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreparedEmail {
+    email: Email,
+}
+
+impl PreparedEmail {
+    /// Validate an email and convert it into a prepared message.
+    pub fn new(email: Email) -> Result<Self, MailError> {
+        Self::with_default_from(email, None)
+    }
+
+    /// Apply an optional default sender, then validate the email.
+    pub fn with_default_from(
+        mut email: Email,
+        default_from: Option<Address>,
+    ) -> Result<Self, MailError> {
+        if email.from.is_none() {
+            email.from = default_from;
+        }
+
+        validate_required_fields(&email)?;
+        Ok(Self { email })
+    }
+
+    /// Borrow the underlying email.
+    pub fn as_email(&self) -> &Email {
+        &self.email
+    }
+
+    /// Consume the prepared wrapper and return the underlying email.
+    pub fn into_inner(self) -> Email {
+        self.email
+    }
+
+    #[cfg_attr(not(feature = "sendgrid"), allow(dead_code))]
+    pub(crate) fn from_validated(email: Email) -> Self {
+        Self { email }
+    }
+}
+
+impl TryFrom<Email> for PreparedEmail {
+    type Error = MailError;
+
+    fn try_from(email: Email) -> Result<Self, Self::Error> {
+        Self::new(email)
+    }
+}
+
+impl Deref for PreparedEmail {
+    type Target = Email;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_email()
+    }
 }
 
 impl Email {
@@ -223,7 +286,7 @@ impl Email {
 
     /// Check if the email has all required fields for sending.
     pub fn is_valid(&self) -> bool {
-        self.from.is_some() && !self.to.is_empty()
+        validate_required_fields(self).is_ok()
     }
 
     /// Get all recipients (to + cc + bcc).
@@ -249,6 +312,16 @@ impl Email {
     pub fn regular_attachments(&self) -> Vec<&Attachment> {
         self.attachments.iter().filter(|a| !a.is_inline()).collect()
     }
+}
+
+pub(crate) fn validate_required_fields(email: &Email) -> Result<(), MailError> {
+    if email.from.is_none() {
+        return Err(MailError::MissingField("from"));
+    }
+    if email.to.is_empty() {
+        return Err(MailError::MissingField("to"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

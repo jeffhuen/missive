@@ -64,7 +64,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -600,7 +600,7 @@ impl JmapBuilder {
 
 #[async_trait]
 impl Mailer for JmapMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         // Get session info
         let session = self.get_session().await?;
         let identity_id = self.get_identity_id(&session).await?;

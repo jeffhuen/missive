@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 
-use crate::email::Email;
+use crate::email::PreparedEmail;
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -41,7 +41,7 @@ impl Default for LoggerMailer {
 
 #[async_trait]
 impl Mailer for LoggerMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let message_id = uuid::Uuid::new_v4().to_string();
 
         if self.log_full {
@@ -87,7 +87,7 @@ impl Mailer for LoggerMailer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Address;
+    use crate::{Address, Email};
 
     #[tokio::test]
     async fn test_logger_brief() {

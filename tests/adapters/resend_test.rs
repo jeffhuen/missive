@@ -4,7 +4,7 @@
 
 use chrono::{TimeZone, Utc};
 use missive::providers::{ResendEmailExt, ResendMailer};
-use missive::{Attachment, Email, MailError, Mailer};
+use missive::{Attachment, Email, MailError, Mailer, PreparedEmail};
 use serde_json::json;
 use std::fs;
 use wiremock::matchers::{body_json, header, method, path};
@@ -471,6 +471,7 @@ fn validate_batch_rejects_scheduled_at() {
         .text_body("Test")
         .provider_option("scheduled_at", "2024-08-05T11:52:01.858Z");
 
+    let email = PreparedEmail::new(email).unwrap();
     let result = mailer.validate_batch(&[email]);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("scheduled_at"));
@@ -487,6 +488,7 @@ fn validate_batch_rejects_attachments() {
         .text_body("See attached")
         .attachment(Attachment::from_bytes("file.txt", b"Content".to_vec()));
 
+    let email = PreparedEmail::new(email).unwrap();
     let result = mailer.validate_batch(&[email]);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("attachments"));
@@ -509,6 +511,8 @@ fn validate_batch_rejects_if_any_email_has_scheduled_at() {
         .text_body("Test")
         .provider_option("scheduled_at", "2024-08-05T11:52:01.858Z");
 
+    let email1 = PreparedEmail::new(email1).unwrap();
+    let email2 = PreparedEmail::new(email2).unwrap();
     let result = mailer.validate_batch(&[email1, email2]);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("scheduled_at"));
@@ -531,6 +535,8 @@ fn validate_batch_rejects_if_any_email_has_attachments() {
         .text_body("Test")
         .attachment(Attachment::from_bytes("file.txt", b"Content".to_vec()));
 
+    let email1 = PreparedEmail::new(email1).unwrap();
+    let email2 = PreparedEmail::new(email2).unwrap();
     let result = mailer.validate_batch(&[email1, email2]);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("attachments"));

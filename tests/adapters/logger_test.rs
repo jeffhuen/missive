@@ -141,14 +141,13 @@ async fn deliver_many_returns_ok() {
 // ============================================================================
 
 #[tokio::test]
-async fn deliver_empty_email_returns_ok() {
+async fn deliver_empty_email_returns_validation_error() {
     let mailer = LoggerMailer::new();
-
-    // Logger doesn't validate, it just logs
     let email = Email::new().subject("Empty email");
 
     let result = mailer.deliver(&email).await;
-    assert!(result.is_ok());
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("from"));
 }
 
 #[tokio::test]

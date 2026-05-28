@@ -52,7 +52,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -205,7 +205,7 @@ fn prepare_recipient(addr: &crate::Address) -> BrevoRecipient {
 
 #[async_trait]
 impl Mailer for BrevoMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let request = self.build_request(email)?;
         let url = format!("{}{}", self.base_url, BREVO_API_ENDPOINT);
 
@@ -245,7 +245,10 @@ impl Mailer for BrevoMailer {
     ///
     /// Global parameters (from first email): sender, attachments, tags, scheduled_at
     /// Per-email parameters: to, cc, bcc, subject, content, template_id, params, headers, reply_to
-    async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
         if emails.is_empty() {
             return Ok(vec![]);
         }
@@ -294,7 +297,10 @@ impl Mailer for BrevoMailer {
                 .provider_options
                 .get("schedule_at")
                 .and_then(|v| v.as_str().map(|s| s.to_string())),
-            message_versions: emails.iter().map(prepare_message_version).collect(),
+            message_versions: emails
+                .iter()
+                .map(|email| prepare_message_version(email.as_email()))
+                .collect(),
         };
 
         // If first email has no subject but template_id, that's fine

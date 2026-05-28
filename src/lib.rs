@@ -149,7 +149,7 @@ pub use address::{Address, ToAddress};
 pub use attachment::{Attachment, AttachmentType};
 pub use client::EmailClient;
 pub use config::*;
-pub use email::Email;
+pub use email::{Email, PreparedEmail};
 pub use error::MailError;
 pub use interceptor::{Interceptor, InterceptorExt, WithInterceptor};
 pub use mailer::{DeliveryResult, Mailer, MailerExt};
@@ -364,6 +364,7 @@ pub mod prelude {
     pub use crate::EmailClient;
     pub use crate::MailError;
     pub use crate::Mailer;
+    pub use crate::PreparedEmail;
     pub use crate::ToAddress;
     pub use crate::{default_from, deliver, deliver_many, deliver_with, is_configured};
 

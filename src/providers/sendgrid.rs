@@ -63,7 +63,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Write;
 
-use crate::email::Email;
+use crate::address::Address;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -326,7 +327,36 @@ impl SendGridMailer {
 
 #[async_trait]
 impl Mailer for SendGridMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    fn prepare_email(
+        &self,
+        mut email: Email,
+        default_from: Option<Address>,
+    ) -> Result<PreparedEmail, MailError> {
+        if email.from.is_none() {
+            email.from = default_from;
+        }
+
+        if email.from.is_none() {
+            return Err(MailError::MissingField("from"));
+        }
+
+        if email.to.is_empty() {
+            let Some(custom) = email.provider_options.get("personalizations") else {
+                return Err(MailError::MissingField("to"));
+            };
+            let personalizations: Vec<SendGridPersonalization> =
+                serde_json::from_value(custom.clone()).map_err(|e| {
+                    MailError::provider("sendgrid", format!("Invalid personalizations: {}", e))
+                })?;
+            if !personalizations.iter().any(|p| !p.to.is_empty()) {
+                return Err(MailError::MissingField("to"));
+            }
+        }
+
+        Ok(PreparedEmail::from_validated(email))
+    }
+
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let request = self.build_request(email)?;
 
         let url = format!("{}/mail/send", self.base_url);

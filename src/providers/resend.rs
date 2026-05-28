@@ -55,7 +55,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -251,7 +251,7 @@ impl ResendMailer {
 
 #[async_trait]
 impl Mailer for ResendMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let request = self.build_request(email)?;
 
         let url = format!("{}/emails", self.base_url);
@@ -297,7 +297,7 @@ impl Mailer for ResendMailer {
     /// Resend's batch API does not support:
     /// - `scheduled_at` option
     /// - Attachments
-    fn validate_batch(&self, emails: &[Email]) -> Result<(), MailError> {
+    fn validate_batch(&self, emails: &[PreparedEmail]) -> Result<(), MailError> {
         for (i, email) in emails.iter().enumerate() {
             if email.provider_options.contains_key("scheduled_at") {
                 return Err(MailError::UnsupportedFeature(format!(
@@ -315,7 +315,10 @@ impl Mailer for ResendMailer {
         Ok(())
     }
 
-    async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
         if emails.is_empty() {
             return Ok(vec![]);
         }

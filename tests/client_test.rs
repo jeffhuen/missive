@@ -1,7 +1,7 @@
 #![cfg(feature = "local")]
 
 use missive::providers::LocalMailer;
-use missive::{Email, EmailClient, MailError, Storage};
+use missive::{deliver_with, Email, EmailClient, MailError, Mailer, Storage};
 
 #[tokio::test]
 async fn email_client_delivers_with_default_sender() {
@@ -53,4 +53,42 @@ async fn email_client_requires_sender_or_default_sender() {
     let error = client.deliver(email).await.unwrap_err();
 
     assert!(matches!(error, MailError::MissingField("from")));
+}
+
+#[tokio::test]
+async fn direct_mailer_rejects_invalid_email_before_storage() {
+    let mailer = LocalMailer::new();
+    let email = Email::new().to("user@example.com");
+
+    let error = mailer.deliver(&email).await.unwrap_err();
+
+    assert!(matches!(error, MailError::MissingField("from")));
+    assert_eq!(mailer.email_count(), 0);
+}
+
+#[tokio::test]
+async fn direct_mailer_batch_rejects_invalid_email_before_storage() {
+    let mailer = LocalMailer::new();
+    let emails = vec![
+        Email::new().from("noreply@example.com"),
+        Email::new()
+            .from("noreply@example.com")
+            .to("user@example.com"),
+    ];
+
+    let error = mailer.deliver_many(&emails).await.unwrap_err();
+
+    assert!(matches!(error, MailError::MissingField("to")));
+    assert_eq!(mailer.email_count(), 0);
+}
+
+#[tokio::test]
+async fn delivery_facade_rejects_invalid_email_before_provider() {
+    let mailer = LocalMailer::new();
+    let email = Email::new().from("noreply@example.com");
+
+    let error = deliver_with(&email, &mailer).await.unwrap_err();
+
+    assert!(matches!(error, MailError::MissingField("to")));
+    assert_eq!(mailer.email_count(), 0);
 }

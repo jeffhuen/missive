@@ -18,7 +18,8 @@
 
 use async_trait::async_trait;
 
-use crate::email::Email;
+use crate::address::Address;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -94,8 +95,22 @@ where
     M: Mailer,
     I: Interceptor,
 {
+    fn prepare_email(
+        &self,
+        email: Email,
+        default_from: Option<Address>,
+    ) -> Result<PreparedEmail, MailError> {
+        let email = self.interceptor.intercept(email)?;
+        self.inner.prepare_email(email, default_from)
+    }
+
     async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
         let email = self.interceptor.intercept(email.clone())?;
+        self.inner.deliver(&email).await
+    }
+
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
+        let email = self.interceptor.intercept(email.as_email().clone())?;
         self.inner.deliver(&email).await
     }
 
@@ -107,7 +122,18 @@ where
         self.inner.deliver_many(&intercepted?).await
     }
 
-    fn validate_batch(&self, emails: &[Email]) -> Result<(), MailError> {
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
+        let intercepted: Result<Vec<Email>, MailError> = emails
+            .iter()
+            .map(|e| self.interceptor.intercept(e.as_email().clone()))
+            .collect();
+        self.inner.deliver_many(&intercepted?).await
+    }
+
+    fn validate_batch(&self, emails: &[PreparedEmail]) -> Result<(), MailError> {
         self.inner.validate_batch(emails)
     }
 

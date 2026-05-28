@@ -55,7 +55,7 @@ use reqwest::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -252,7 +252,7 @@ fn encode_variable(value: &Value) -> String {
 
 #[async_trait]
 impl Mailer for MailgunMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let form = self.build_form(email)?;
         let url = format!("{}/{}/messages", self.base_url, self.domain);
 

@@ -58,7 +58,7 @@ use reqwest::Client;
 use ring::hmac;
 use sha2::{Digest, Sha256};
 
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -559,7 +559,7 @@ fn build_mime_message(email: &Email) -> Result<Vec<u8>, MailError> {
 
 #[async_trait]
 impl Mailer for AmazonSesMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let body = self.build_body(email)?;
         let date_time = Utc::now();
 

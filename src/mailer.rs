@@ -44,7 +44,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::email::Email;
+use crate::address::Address;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 
 /// Result of a successful email delivery.
@@ -98,10 +99,34 @@ impl DeliveryResult {
 /// ```
 #[async_trait]
 pub trait Mailer: Send + Sync {
-    /// Send a single email.
+    /// Apply provider-specific validation and convert an email into a prepared
+    /// message.
+    ///
+    /// Providers with alternate recipient models can override this while still
+    /// ensuring their adapter receives `PreparedEmail` rather than raw `Email`.
+    fn prepare_email(
+        &self,
+        email: Email,
+        default_from: Option<Address>,
+    ) -> Result<PreparedEmail, MailError> {
+        PreparedEmail::with_default_from(email, default_from)
+    }
+
+    /// Validate and send a single email.
+    ///
+    /// Provider implementations should normally implement
+    /// [`deliver_prepared`](Self::deliver_prepared), not override this method,
+    /// so every direct mailer call goes through Missive's shared validation
+    /// path before provider-specific serialization.
+    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+        let email = self.prepare_email(email.clone(), None)?;
+        self.deliver_prepared(&email).await
+    }
+
+    /// Send an email that has passed Missive's shared validation.
     ///
     /// Returns the message ID on success.
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError>;
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError>;
 
     /// Validate emails before batch sending.
     ///
@@ -111,7 +136,7 @@ pub trait Mailer: Send + Sync {
     /// # Example
     ///
     /// ```ignore
-    /// fn validate_batch(&self, emails: &[Email]) -> Result<(), MailError> {
+    /// fn validate_batch(&self, emails: &[PreparedEmail]) -> Result<(), MailError> {
     ///     for email in emails {
     ///         if !email.attachments.is_empty() {
     ///             return Err(MailError::UnsupportedFeature(
@@ -122,21 +147,39 @@ pub trait Mailer: Send + Sync {
     ///     Ok(())
     /// }
     /// ```
-    fn validate_batch(&self, _emails: &[Email]) -> Result<(), MailError> {
+    fn validate_batch(&self, _emails: &[PreparedEmail]) -> Result<(), MailError> {
         Ok(()) // Default: no restrictions
     }
 
-    /// Send multiple emails.
+    /// Validate and send multiple emails.
     ///
-    /// Default implementation calls `validate_batch()` first, then `deliver()` for each email.
-    /// Providers with batch APIs can override for better performance.
+    /// Default implementation prepares all messages first, calls
+    /// `validate_batch()`, then sends each prepared email. Providers with batch
+    /// APIs should override [`deliver_many_prepared`](Self::deliver_many_prepared).
     async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
-        // Validate batch before sending
+        let emails = emails
+            .iter()
+            .cloned()
+            .map(|email| self.prepare_email(email, None))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        self.deliver_many_prepared(&emails).await
+    }
+
+    /// Send multiple already-prepared emails.
+    ///
+    /// Default implementation calls `validate_batch()` first, then
+    /// `deliver_prepared()` for each email.
+    /// Providers with batch APIs can override for better performance.
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
         self.validate_batch(emails)?;
 
         let mut results = Vec::with_capacity(emails.len());
         for email in emails {
-            results.push(self.deliver(email).await?);
+            results.push(self.deliver_prepared(email).await?);
         }
         Ok(results)
     }
@@ -185,16 +228,35 @@ impl<T: Mailer> MailerExt for T {}
 
 #[async_trait]
 impl<T: Mailer + ?Sized> Mailer for &T {
+    fn prepare_email(
+        &self,
+        email: Email,
+        default_from: Option<Address>,
+    ) -> Result<PreparedEmail, MailError> {
+        (**self).prepare_email(email, default_from)
+    }
+
     async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
         (**self).deliver(email).await
     }
 
-    fn validate_batch(&self, emails: &[Email]) -> Result<(), MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
+        (**self).deliver_prepared(email).await
+    }
+
+    fn validate_batch(&self, emails: &[PreparedEmail]) -> Result<(), MailError> {
         (**self).validate_batch(emails)
     }
 
     async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
         (**self).deliver_many(emails).await
+    }
+
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
+        (**self).deliver_many_prepared(emails).await
     }
 
     fn provider_name(&self) -> &'static str {
@@ -208,16 +270,35 @@ impl<T: Mailer + ?Sized> Mailer for &T {
 
 #[async_trait]
 impl<T: Mailer + ?Sized> Mailer for Arc<T> {
+    fn prepare_email(
+        &self,
+        email: Email,
+        default_from: Option<Address>,
+    ) -> Result<PreparedEmail, MailError> {
+        (**self).prepare_email(email, default_from)
+    }
+
     async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
         (**self).deliver(email).await
     }
 
-    fn validate_batch(&self, emails: &[Email]) -> Result<(), MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
+        (**self).deliver_prepared(email).await
+    }
+
+    fn validate_batch(&self, emails: &[PreparedEmail]) -> Result<(), MailError> {
         (**self).validate_batch(emails)
     }
 
     async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
         (**self).deliver_many(emails).await
+    }
+
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
+        (**self).deliver_many_prepared(emails).await
     }
 
     fn provider_name(&self) -> &'static str {

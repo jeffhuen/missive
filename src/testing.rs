@@ -530,7 +530,15 @@ mod tests {
     #[should_panic(expected = "Expected no emails")]
     async fn test_assert_no_emails_fails_when_sent() {
         let mailer = LocalMailer::new();
-        mailer.deliver(&Email::new().subject("Test")).await.unwrap();
+        mailer
+            .deliver(
+                &Email::new()
+                    .from("sender@example.com")
+                    .to("recipient@example.com")
+                    .subject("Test"),
+            )
+            .await
+            .unwrap();
         assert_no_emails_sent(&mailer);
     }
 }

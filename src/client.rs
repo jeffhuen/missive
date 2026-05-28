@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use crate::address::{Address, ToAddress};
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -43,13 +43,11 @@ impl<M> EmailClient<M> {
         &self.mailer
     }
 
-    fn prepare_email(&self, mut email: Email) -> Result<Email, MailError> {
-        if email.from.is_none() {
-            email.from = self.default_from.clone();
-        }
-
-        validate(&email)?;
-        Ok(email)
+    fn prepare_email(&self, email: Email) -> Result<PreparedEmail, MailError>
+    where
+        M: Mailer,
+    {
+        self.mailer.prepare_email(email, self.default_from.clone())
     }
 }
 
@@ -78,7 +76,7 @@ impl<M: Mailer> EmailClient<M> {
         let _guard = span.enter();
 
         let start = Instant::now();
-        let result = self.mailer.deliver_many(&emails).await;
+        let result = self.mailer.deliver_many_prepared(&emails).await;
         let duration = start.elapsed();
         let status = if result.is_ok() { "success" } else { "error" };
 
@@ -115,19 +113,9 @@ impl<M: Mailer> EmailClient<M> {
     }
 }
 
-fn validate(email: &Email) -> Result<(), MailError> {
-    if email.from.is_none() {
-        return Err(MailError::MissingField("from"));
-    }
-    if email.to.is_empty() {
-        return Err(MailError::MissingField("to"));
-    }
-    Ok(())
-}
-
 async fn deliver_prepared<M: Mailer>(
     mailer: &M,
-    email: &Email,
+    email: &PreparedEmail,
 ) -> Result<DeliveryResult, MailError> {
     let provider = mailer.provider_name();
     let recipient_count = email.all_recipients().len();
@@ -146,7 +134,7 @@ async fn deliver_prepared<M: Mailer>(
     tracing::debug!("Delivering email");
 
     let start = Instant::now();
-    let result = mailer.deliver(email).await;
+    let result = mailer.deliver_prepared(email).await;
     let duration = start.elapsed();
     let duration_ms = duration.as_millis() as u64;
     let status = if result.is_ok() { "success" } else { "error" };

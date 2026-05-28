@@ -42,7 +42,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
@@ -252,7 +252,7 @@ impl MailjetMailer {
 
 #[async_trait]
 impl Mailer for MailjetMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         let message = self.build_message(email)?;
         let request = MailjetRequest {
             messages: vec![message],
@@ -333,7 +333,10 @@ impl Mailer for MailjetMailer {
         }
     }
 
-    async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
         if emails.is_empty() {
             return Ok(vec![]);
         }

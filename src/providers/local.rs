@@ -40,7 +40,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use crate::email::Email;
+use crate::email::{Email, PreparedEmail};
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 use crate::storage::{MemoryStorage, Storage, StoredEmail};
@@ -208,13 +208,13 @@ impl Clone for LocalMailer {
 
 #[async_trait]
 impl Mailer for LocalMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
         // Check for configured failure
         if let Some(ref message) = *self.fail_with.read().unwrap() {
             return Err(MailError::SendError(message.clone()));
         }
 
-        let message_id = self.storage.push(email.clone());
+        let message_id = self.storage.push(email.as_email().clone());
         Ok(DeliveryResult::new(message_id))
     }
 
@@ -226,6 +226,13 @@ impl Mailer for LocalMailer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn valid_email(subject: &str) -> Email {
+        Email::new()
+            .from("sender@example.com")
+            .to("recipient@example.com")
+            .subject(subject)
+    }
 
     #[tokio::test]
     async fn test_local_mailer() {
@@ -253,7 +260,7 @@ mod tests {
         let storage = MemoryStorage::shared();
         let mailer = LocalMailer::with_storage(Arc::clone(&storage));
 
-        let email = Email::new().subject("Shared Test");
+        let email = valid_email("Shared Test");
         mailer.deliver(&email).await.unwrap();
 
         // Storage is shared
@@ -284,7 +291,7 @@ mod tests {
         let mailer = LocalMailer::new();
         mailer.set_failure("Simulated failure");
 
-        let email = Email::new().subject("Test");
+        let email = valid_email("Test");
         let result = mailer.deliver(&email).await;
 
         assert!(result.is_err());
@@ -304,12 +311,22 @@ mod tests {
         let mailer = LocalMailer::new();
 
         mailer
-            .deliver(&Email::new().to("a@example.com").subject("Welcome"))
+            .deliver(
+                &Email::new()
+                    .from("sender@example.com")
+                    .to("a@example.com")
+                    .subject("Welcome"),
+            )
             .await
             .unwrap();
 
         mailer
-            .deliver(&Email::new().to("b@example.com").subject("Goodbye"))
+            .deliver(
+                &Email::new()
+                    .from("sender@example.com")
+                    .to("b@example.com")
+                    .subject("Goodbye"),
+            )
             .await
             .unwrap();
 
@@ -326,14 +343,8 @@ mod tests {
     async fn test_flush() {
         let mailer = LocalMailer::new();
 
-        mailer
-            .deliver(&Email::new().subject("Email 1"))
-            .await
-            .unwrap();
-        mailer
-            .deliver(&Email::new().subject("Email 2"))
-            .await
-            .unwrap();
+        mailer.deliver(&valid_email("Email 1")).await.unwrap();
+        mailer.deliver(&valid_email("Email 2")).await.unwrap();
 
         let flushed = mailer.flush();
         assert_eq!(flushed.len(), 2);
@@ -343,7 +354,7 @@ mod tests {
     #[tokio::test]
     async fn test_clone() {
         let mailer = LocalMailer::new();
-        mailer.deliver(&Email::new().subject("Test")).await.unwrap();
+        mailer.deliver(&valid_email("Test")).await.unwrap();
 
         let cloned = mailer.clone();
 
@@ -351,10 +362,7 @@ mod tests {
         assert_eq!(cloned.email_count(), 1);
 
         // Deliver through clone
-        cloned
-            .deliver(&Email::new().subject("Test 2"))
-            .await
-            .unwrap();
+        cloned.deliver(&valid_email("Test 2")).await.unwrap();
         assert_eq!(mailer.email_count(), 2);
     }
 }

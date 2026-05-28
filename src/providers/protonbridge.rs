@@ -56,7 +56,7 @@
 
 use async_trait::async_trait;
 
-use crate::email::Email;
+use crate::email::PreparedEmail;
 use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 use crate::providers::SmtpMailer;
@@ -125,12 +125,15 @@ impl ProtonBridgeBuilder {
 
 #[async_trait]
 impl Mailer for ProtonBridgeMailer {
-    async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
-        self.inner.deliver(email).await
+    async fn deliver_prepared(&self, email: &PreparedEmail) -> Result<DeliveryResult, MailError> {
+        self.inner.deliver_prepared(email).await
     }
 
-    async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
-        self.inner.deliver_many(emails).await
+    async fn deliver_many_prepared(
+        &self,
+        emails: &[PreparedEmail],
+    ) -> Result<Vec<DeliveryResult>, MailError> {
+        self.inner.deliver_many_prepared(emails).await
     }
 
     fn provider_name(&self) -> &'static str {
