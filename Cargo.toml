@@ -116,3 +116,57 @@ serde_urlencoded = "0.7"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 ureq = { version = "2", features = ["json"] }
+
+[[example]]
+name = "jmap_integration"
+required-features = ["jmap"]
+
+[[test]]
+name = "adapters"
+required-features = [
+  "amazon_ses",
+  "brevo",
+  "gmail",
+  "jmap",
+  "local",
+  "mailgun",
+  "mailjet",
+  "mailtrap",
+  "postmark",
+  "resend",
+  "sendgrid",
+  "socketlabs",
+  "unsent",
+]
+
+[[test]]
+name = "client_test"
+required-features = ["local"]
+
+[[test]]
+name = "config_test"
+required-features = ["full"]
+
+[[test]]
+name = "interceptor_test"
+required-features = ["local"]
+
+[[test]]
+name = "memory_storage_test"
+required-features = ["local"]
+
+[[test]]
+name = "preview_standalone_test"
+required-features = ["preview"]
+
+[[test]]
+name = "preview_test"
+required-features = ["preview-axum"]
+
+[[test]]
+name = "telemetry_test"
+required-features = ["local"]
+
+[[test]]
+name = "test_assertions_test"
+required-features = ["local"]
