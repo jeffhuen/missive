@@ -1,6 +1,7 @@
 //! # Missive
 //!
 //! Compose, deliver, and test emails in Rust. Plug and play.
+#![warn(clippy::return_self_not_must_use)]
 //!
 //! ## Quick Start
 //!

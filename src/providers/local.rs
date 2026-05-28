@@ -50,6 +50,7 @@ use crate::storage::{MemoryStorage, Storage, StoredEmail};
 /// Use for:
 /// - **Development**: View emails via the [preview UI](crate::preview)
 /// - **Testing**: Assert on sent emails with [testing helpers](crate::testing)
+#[must_use = "LocalMailer values should be delivered with or stored for later use"]
 pub struct LocalMailer {
     storage: Arc<MemoryStorage>,
     /// If set, deliver() will return this error (for testing error paths).

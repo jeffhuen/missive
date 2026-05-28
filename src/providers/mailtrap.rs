@@ -54,6 +54,7 @@ const MAILTRAP_SANDBOX_BASE_URL: &str = "https://sandbox.api.mailtrap.io";
 const MAILTRAP_API_ENDPOINT: &str = "/api/send";
 
 /// Mailtrap API email provider.
+#[must_use = "MailtrapMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct MailtrapMailer {
     api_key: String,
     base_url: Option<String>,

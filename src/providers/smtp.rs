@@ -37,6 +37,7 @@ fn attachment_content_type(content_type: &str) -> ContentType {
 }
 
 /// SMTP email provider.
+#[must_use = "SmtpMailer values should be delivered with or stored for later use"]
 pub struct SmtpMailer {
     transport: AsyncSmtpTransport<Tokio1Executor>,
 }
@@ -202,6 +203,7 @@ pub enum TlsMode {
 }
 
 /// Builder for SmtpMailer.
+#[must_use = "SmtpBuilder configuration methods return a modified builder; chain or assign the returned value"]
 pub struct SmtpBuilder {
     host: String,
     port: u16,

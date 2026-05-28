@@ -80,6 +80,7 @@ impl Address {
     }
 
     /// Set the display name.
+    #[must_use = "name returns a modified address; chain or assign the returned value"]
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self

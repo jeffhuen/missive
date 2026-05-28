@@ -60,6 +60,7 @@ fn attachment_content_type(content_type: &str) -> ContentType {
 }
 
 /// Gmail API email provider.
+#[must_use = "GmailMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct GmailMailer {
     access_token: String,
     client: Client,

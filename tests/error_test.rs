@@ -29,3 +29,19 @@ fn attachment_read_errors_preserve_io_source_chain() {
     let source = StdError::source(&error).expect("io source should be preserved");
     assert!(source.is::<std::io::Error>());
 }
+
+#[test]
+fn mail_error_display_messages_start_lowercase() {
+    assert_eq!(
+        MailError::NotConfigured.to_string(),
+        "email provider not configured"
+    );
+    assert_eq!(
+        MailError::Configuration("SMTP_HOST not set".into()).to_string(),
+        "configuration error: SMTP_HOST not set"
+    );
+    assert_eq!(
+        MailError::provider("jmap", "invalidArguments").to_string(),
+        "provider error (jmap): invalidArguments"
+    );
+}

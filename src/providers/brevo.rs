@@ -60,6 +60,7 @@ const BREVO_BASE_URL: &str = "https://api.brevo.com/v3";
 const BREVO_API_ENDPOINT: &str = "/smtp/email";
 
 /// Brevo API email provider.
+#[must_use = "BrevoMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct BrevoMailer {
     api_key: String,
     base_url: String,

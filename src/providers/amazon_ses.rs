@@ -71,6 +71,7 @@ const ENCODING: &str = "AWS4-HMAC-SHA256";
 type HmacSha256 = Hmac<Sha256>;
 
 /// Amazon SES API email provider.
+#[must_use = "AmazonSesMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct AmazonSesMailer {
     region: String,
     access_key: String,

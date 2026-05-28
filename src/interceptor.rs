@@ -239,6 +239,7 @@ pub trait InterceptorExt: Mailer + Sized {
     ///     .with_interceptor(validate_recipients)
     ///     .with_interceptor(add_branding);
     /// ```
+    #[must_use = "with_interceptor returns a wrapped mailer; chain or assign the returned value"]
     fn with_interceptor<I>(self, interceptor: I) -> WithInterceptor<Self, I>
     where
         I: Interceptor,

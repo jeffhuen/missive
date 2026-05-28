@@ -69,6 +69,7 @@ use crate::providers::SmtpMailer;
 /// local SMTP server (default: `127.0.0.1:1025`, no TLS).
 ///
 /// See [Proton Bridge](https://proton.me/mail/bridge) for setup instructions.
+#[must_use = "ProtonBridgeMailer values should be delivered with or stored for later use"]
 pub struct ProtonBridgeMailer {
     inner: SmtpMailer,
 }
@@ -92,6 +93,7 @@ impl ProtonBridgeMailer {
 }
 
 /// Builder for ProtonBridgeMailer.
+#[must_use = "ProtonBridgeBuilder configuration methods return a modified builder; chain or assign the returned value"]
 pub struct ProtonBridgeBuilder {
     host: String,
     port: u16,

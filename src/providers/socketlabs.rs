@@ -56,6 +56,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 const SOCKETLABS_API_URL: &str = "https://inject-cx.socketlabs.com/api/v1";
 
 /// SocketLabs Injection API email provider.
+#[must_use = "SocketLabsMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct SocketLabsMailer {
     server_id: String,
     api_key: String,

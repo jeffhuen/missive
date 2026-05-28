@@ -209,12 +209,14 @@ impl Attachment {
     }
 
     /// Set the content type explicitly.
+    #[must_use = "content_type returns a modified attachment; chain or assign the returned value"]
     pub fn content_type(mut self, content_type: impl Into<String>) -> Self {
         self.content_type = content_type.into();
         self
     }
 
     /// Set as inline attachment (for embedding in HTML).
+    #[must_use = "inline returns a modified attachment; chain or assign the returned value"]
     pub fn inline(mut self) -> Self {
         self.disposition = AttachmentType::Inline;
         // Auto-generate content_id from filename if not set
@@ -227,12 +229,14 @@ impl Attachment {
     /// Set the Content-ID for inline attachments.
     ///
     /// This is used to reference the attachment in HTML: `<img src="cid:your-id">`
+    #[must_use = "content_id returns a modified attachment; chain or assign the returned value"]
     pub fn content_id(mut self, cid: impl Into<String>) -> Self {
         self.content_id = Some(cid.into());
         self
     }
 
     /// Add a custom header to the attachment.
+    #[must_use = "header returns a modified attachment; chain or assign the returned value"]
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.headers.push((name.into(), value.into()));
         self

@@ -19,6 +19,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 const UNSENT_API_URL: &str = "https://api.unsend.dev/v1";
 
 /// Unsent API email provider.
+#[must_use = "UnsentMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct UnsentMailer {
     api_key: String,
     client: Client,

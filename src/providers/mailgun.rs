@@ -62,6 +62,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 const MAILGUN_BASE_URL: &str = "https://api.mailgun.net/v3";
 
 /// Mailgun API email provider.
+#[must_use = "MailgunMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct MailgunMailer {
     api_key: String,
     domain: String,

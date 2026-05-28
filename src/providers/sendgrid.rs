@@ -71,6 +71,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 const SENDGRID_API_URL: &str = "https://api.sendgrid.com/v3";
 
 /// SendGrid API email provider.
+#[must_use = "SendGridMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct SendGridMailer {
     api_key: String,
     client: Client,

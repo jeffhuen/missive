@@ -62,6 +62,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 const RESEND_API_URL: &str = "https://api.resend.com";
 
 /// Resend API email provider.
+#[must_use = "ResendMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct ResendMailer {
     api_key: String,
     client: Client,
@@ -71,20 +72,24 @@ pub struct ResendMailer {
 /// Typed extension methods for Resend-specific email options.
 pub trait ResendEmailExt: Sized {
     /// Add a Resend analytics tag.
+    #[must_use = "resend_tag returns a modified email; chain or assign the returned value"]
     fn resend_tag<N, V>(self, name: N, value: V) -> Self
     where
         N: Into<String>,
         V: Into<String>;
 
     /// Schedule a Resend email for a future time.
+    #[must_use = "resend_scheduled_at returns a modified email; chain or assign the returned value"]
     fn resend_scheduled_at(self, scheduled_at: DateTime<Utc>) -> Self;
 
     /// Set the Resend idempotency key request header.
+    #[must_use = "resend_idempotency_key returns a modified email; chain or assign the returned value"]
     fn resend_idempotency_key<K>(self, key: K) -> Self
     where
         K: Into<String>;
 
     /// Set a Resend template payload.
+    #[must_use = "resend_template returns a modified email; chain or assign the returned value"]
     fn resend_template<T>(self, template: T) -> Result<Self, MailError>
     where
         T: Serialize;

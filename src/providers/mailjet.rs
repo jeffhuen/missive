@@ -55,6 +55,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 const MAILJET_API_URL: &str = "https://api.mailjet.com/v3.1";
 
 /// Mailjet API email provider.
+#[must_use = "MailjetMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct MailjetMailer {
     api_key: String,
     secret_key: String,

@@ -7,35 +7,35 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum MailError {
     /// Email provider is not configured.
-    #[error("Email provider not configured")]
+    #[error("email provider not configured")]
     NotConfigured,
 
     /// Configuration error (missing env var, invalid value, etc.)
-    #[error("Configuration error: {0}")]
+    #[error("configuration error: {0}")]
     Configuration(String),
 
     /// Missing required field (e.g., from address).
-    #[error("Missing required field: {0}")]
+    #[error("missing required field: {0}")]
     MissingField(&'static str),
 
     /// Invalid email address format.
-    #[error("Invalid email address: {0}")]
+    #[error("invalid email address: {0}")]
     InvalidAddress(String),
 
     /// Error reading or processing attachment (generic).
-    #[error("Attachment error: {0}")]
+    #[error("attachment error: {0}")]
     AttachmentError(String),
 
     /// Attachment has no content (neither data nor path provided).
-    #[error("Attachment has no content: {0}")]
+    #[error("attachment has no content: {0}")]
     AttachmentMissingContent(String),
 
     /// Attachment file not found.
-    #[error("Attachment file not found: {0}")]
+    #[error("attachment file not found: {0}")]
     AttachmentFileNotFound(String),
 
     /// Failed to read attachment file.
-    #[error("Failed to read attachment {path}: {source}")]
+    #[error("failed to read attachment {path}: {source}")]
     AttachmentReadError {
         /// Attachment path that failed to read.
         path: String,
@@ -45,19 +45,19 @@ pub enum MailError {
     },
 
     /// Error building the email message.
-    #[error("Build error: {0}")]
+    #[error("build error: {0}")]
     BuildError(String),
 
     /// Error sending the email.
-    #[error("Send error: {0}")]
+    #[error("send error: {0}")]
     SendError(String),
 
     /// Unsupported feature for this adapter.
-    #[error("Unsupported feature: {0}")]
+    #[error("unsupported feature: {0}")]
     UnsupportedFeature(String),
 
     /// Provider-specific error with details.
-    #[error("Provider error ({provider}): {message}")]
+    #[error("provider error ({provider}): {message}")]
     ProviderError {
         provider: &'static str,
         message: String,
@@ -75,12 +75,12 @@ pub enum MailError {
     JsonError(#[from] serde_json::Error),
 
     /// Template rendering error.
-    #[error("Template error: {0}")]
+    #[error("template error: {0}")]
     TemplateError(String),
 
     /// Template rendering failed with a source error.
     #[cfg(feature = "templates")]
-    #[error("Template error: {0}")]
+    #[error("template error: {0}")]
     TemplateRenderError(#[from] askama::Error),
 
     /// Email message construction failed with a lettre source error.
@@ -88,7 +88,7 @@ pub enum MailError {
         feature = "smtp",
         not(all(target_family = "wasm", target_os = "unknown"))
     ))]
-    #[error("Build error: {0}")]
+    #[error("build error: {0}")]
     LettreBuildError(#[from] lettre::error::Error),
 
     /// SMTP transport failed with a lettre source error.
@@ -96,7 +96,7 @@ pub enum MailError {
         feature = "smtp",
         not(all(target_family = "wasm", target_os = "unknown"))
     ))]
-    #[error("Send error: {0}")]
+    #[error("send error: {0}")]
     SmtpError(#[from] lettre::transport::smtp::Error),
 
     /// Lettre address parsing failed.
@@ -104,11 +104,11 @@ pub enum MailError {
         feature = "smtp",
         not(all(target_family = "wasm", target_os = "unknown"))
     ))]
-    #[error("Invalid email address: {0}")]
+    #[error("invalid email address: {0}")]
     LettreAddressError(#[from] lettre::address::AddressError),
 
     /// Generic internal error.
-    #[error("Internal error: {0}")]
+    #[error("internal error: {0}")]
     Internal(String),
 }
 

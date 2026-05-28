@@ -71,6 +71,7 @@ use crate::mailer::{DeliveryResult, Mailer};
 const POSTMARK_API_URL: &str = "https://api.postmarkapp.com";
 
 /// Postmark API email provider.
+#[must_use = "PostmarkMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct PostmarkMailer {
     api_token: String,
     client: Client,

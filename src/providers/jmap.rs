@@ -80,6 +80,7 @@ fn jmap_address(addr: &Address) -> Result<Value, MailError> {
 ///
 /// A minimal JMAP client for email submission. Works with any
 /// JMAP-compliant server (Stalwart, Fastmail, Cyrus, etc.).
+#[must_use = "JmapMailer values should be delivered with or stored for later use"]
 pub struct JmapMailer {
     session_url: String,
     auth: JmapAuth,
@@ -539,6 +540,7 @@ fn write_session_cache<T>(lock: &std::sync::RwLock<T>) -> std::sync::RwLockWrite
 }
 
 /// Builder for JmapMailer.
+#[must_use = "JmapBuilder configuration methods return a modified builder; chain or assign the returned value"]
 pub struct JmapBuilder {
     session_url: String,
     auth: Option<JmapAuth>,

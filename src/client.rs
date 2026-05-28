@@ -32,6 +32,7 @@ impl<M> EmailClient<M> {
     }
 
     /// Configure the sender used when an email omits `from`.
+    #[must_use = "with_default_from returns a modified client; chain or assign the returned value"]
     pub fn with_default_from(mut self, addr: impl ToAddress) -> Self {
         self.default_from = Some(addr.to_address());
         self

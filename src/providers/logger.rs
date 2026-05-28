@@ -10,6 +10,7 @@ use crate::error::MailError;
 use crate::mailer::{DeliveryResult, Mailer};
 
 /// Logger mailer that emits tracing events for emails.
+#[must_use = "LoggerMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct LoggerMailer {
     /// If true, log full email details. If false, just log recipient summary.
     log_full: bool,

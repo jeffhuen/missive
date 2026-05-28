@@ -155,6 +155,7 @@ impl Email {
     /// - `"email@example.com"` - just email
     /// - `("Name", "email@example.com")` - name and email
     /// - Custom types that implement `ToAddress`
+    #[must_use = "from returns a modified email; chain or assign the returned value"]
     pub fn from(mut self, addr: impl ToAddress) -> Self {
         self.from = Some(addr.to_address());
         self
@@ -164,12 +165,14 @@ impl Email {
     ///
     /// Can be called multiple times to add multiple recipients.
     /// Accepts anything that implements `ToAddress`.
+    #[must_use = "to returns a modified email; chain or assign the returned value"]
     pub fn to(mut self, addr: impl ToAddress) -> Self {
         self.to.push(addr.to_address());
         self
     }
 
     /// Replace all recipients.
+    #[must_use = "put_to returns a modified email; chain or assign the returned value"]
     pub fn put_to(mut self, addrs: Vec<Address>) -> Self {
         self.to = addrs;
         self
@@ -177,12 +180,14 @@ impl Email {
 
     /// Add a CC recipient.
     /// Accepts anything that implements `ToAddress`.
+    #[must_use = "cc returns a modified email; chain or assign the returned value"]
     pub fn cc(mut self, addr: impl ToAddress) -> Self {
         self.cc.push(addr.to_address());
         self
     }
 
     /// Replace all CC recipients.
+    #[must_use = "put_cc returns a modified email; chain or assign the returned value"]
     pub fn put_cc(mut self, addrs: Vec<Address>) -> Self {
         self.cc = addrs;
         self
@@ -190,12 +195,14 @@ impl Email {
 
     /// Add a BCC recipient.
     /// Accepts anything that implements `ToAddress`.
+    #[must_use = "bcc returns a modified email; chain or assign the returned value"]
     pub fn bcc(mut self, addr: impl ToAddress) -> Self {
         self.bcc.push(addr.to_address());
         self
     }
 
     /// Replace all BCC recipients.
+    #[must_use = "put_bcc returns a modified email; chain or assign the returned value"]
     pub fn put_bcc(mut self, addrs: Vec<Address>) -> Self {
         self.bcc = addrs;
         self
@@ -205,42 +212,49 @@ impl Email {
     ///
     /// Can be called multiple times to add multiple reply-to addresses.
     /// Accepts anything that implements `ToAddress`.
+    #[must_use = "reply_to returns a modified email; chain or assign the returned value"]
     pub fn reply_to(mut self, addr: impl ToAddress) -> Self {
         self.reply_to.push(addr.to_address());
         self
     }
 
     /// Replace all reply-to addresses.
+    #[must_use = "put_reply_to returns a modified email; chain or assign the returned value"]
     pub fn put_reply_to(mut self, addrs: Vec<Address>) -> Self {
         self.reply_to = addrs;
         self
     }
 
     /// Set the subject line.
+    #[must_use = "subject returns a modified email; chain or assign the returned value"]
     pub fn subject(mut self, subject: impl Into<String>) -> Self {
         self.subject = subject.into();
         self
     }
 
     /// Set the plain text body.
+    #[must_use = "text_body returns a modified email; chain or assign the returned value"]
     pub fn text_body(mut self, body: impl Into<String>) -> Self {
         self.text_body = Some(body.into());
         self
     }
 
     /// Set the HTML body.
+    #[must_use = "html_body returns a modified email; chain or assign the returned value"]
     pub fn html_body(mut self, body: impl Into<String>) -> Self {
         self.html_body = Some(body.into());
         self
     }
 
     /// Add an attachment.
+    #[must_use = "attachment returns a modified email; chain or assign the returned value"]
     pub fn attachment(mut self, attachment: Attachment) -> Self {
         self.attachments.push(attachment);
         self
     }
 
     /// Add a custom header.
+    #[must_use = "header returns a modified email; chain or assign the returned value"]
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.headers.insert(name.into(), value.into());
         self
@@ -260,6 +274,7 @@ impl Email {
     ///     .provider_option("template_id", "welcome-email")
     ///     .provider_option("tags", vec!["signup", "welcome"])
     /// ```
+    #[must_use = "provider_option returns a modified email; chain or assign the returned value"]
     pub fn provider_option(
         mut self,
         key: impl Into<String>,
@@ -278,6 +293,7 @@ impl Email {
     ///     .assign("username", "alice")
     ///     .assign("action_url", "https://example.com/verify")
     /// ```
+    #[must_use = "assign returns a modified email; chain or assign the returned value"]
     pub fn assign(mut self, key: impl Into<String>, value: impl Into<serde_json::Value>) -> Self {
         self.assigns.insert(key.into(), value.into());
         self
@@ -294,6 +310,7 @@ impl Email {
     ///     .put_private("template_path", "emails/welcome.html")
     ///     .put_private("sent_at", chrono::Utc::now().to_rfc3339())
     /// ```
+    #[must_use = "put_private returns a modified email; chain or assign the returned value"]
     pub fn put_private(
         mut self,
         key: impl Into<String>,
