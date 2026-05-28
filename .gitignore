@@ -18,9 +18,12 @@ Thumbs.db
 .env
 .env.*
 
-# Claude
+# Claude, Codex, Antigravity, Agents
 CLAUDE.md
+AGENTS.md
 .claude/
+.agents/
+.antigravitycli/
 
 # Internal docs (not for public release yet)
 /docs/ROADMAP.md
@@ -31,3 +34,6 @@ refactor.md
 .dolt/
 *.db
 .beads-credential-key
+
+# Graphify
+graphify-out/

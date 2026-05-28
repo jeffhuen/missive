@@ -1,30 +1,6 @@
-#!/usr/bin/env sh
-# --- BEGIN BEADS INTEGRATION v1.0.4 ---
-# This section is managed by beads. Do not remove these markers.
-if command -v bd >/dev/null 2>&1; then
-  export BD_GIT_HOOK=1
-  _bd_timeout=${BEADS_HOOK_TIMEOUT:-300}
-  if command -v timeout >/dev/null 2>&1; then
-    timeout "$_bd_timeout" bd hooks run post-checkout "$@"
-    _bd_exit=$?
-    if [ $_bd_exit -eq 124 ]; then
-      echo >&2 "beads: hook 'post-checkout' timed out after ${_bd_timeout}s — continuing without beads"
-      _bd_exit=0
-    fi
-  else
-    bd hooks run post-checkout "$@"
-    _bd_exit=$?
-  fi
-  if [ $_bd_exit -eq 3 ]; then
-    echo >&2 "beads: database not initialized — skipping hook 'post-checkout'"
-    _bd_exit=0
-  fi
-  if [ $_bd_exit -ne 0 ]; then exit $_bd_exit; fi
-fi
-# --- END BEADS INTEGRATION v1.0.4 ---
-
-# graphify-checkout-hook-start
-# Auto-rebuilds the knowledge graph (code only) when switching branches.
+#!/bin/sh
+# graphify-hook-start
+# Auto-rebuilds the knowledge graph after each commit (code files only, no LLM needed).
 # Installed by: graphify hook install
 
 # Deterministic clustering: networkx louvain iterates string-keyed sets whose
@@ -32,26 +8,25 @@ fi
 # churn run-to-run. Pinning it makes graphify-out reproducible.
 export PYTHONHASHSEED=0
 
-PREV_HEAD=$1
-NEW_HEAD=$2
-BRANCH_SWITCH=$3
-
-# Only run on branch switches, not file checkouts
-if [ "$BRANCH_SWITCH" != "1" ]; then
-    exit 0
-fi
-
-# Only run if graphify-out/ exists (graph has been built before)
-if [ ! -d "graphify-out" ]; then
-    exit 0
-fi
-
-# Skip during rebase/merge/cherry-pick
+# Skip during rebase/merge/cherry-pick to avoid blocking --continue with unstaged changes
 GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
 [ -d "$GIT_DIR/rebase-merge" ] && exit 0
 [ -d "$GIT_DIR/rebase-apply" ] && exit 0
 [ -f "$GIT_DIR/MERGE_HEAD" ] && exit 0
 [ -f "$GIT_DIR/CHERRY_PICK_HEAD" ] && exit 0
+
+[ "${GRAPHIFY_SKIP_HOOK:-0}" = "1" ] && exit 0
+
+CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD 2>/dev/null)
+if [ -z "$CHANGED" ]; then
+    exit 0
+fi
+
+# Skip when only graphify-out/ artifacts changed (avoids rebuild loop when graph outputs are tracked in git)
+_NON_GRAPH=$(echo "$CHANGED" | grep -v '^graphify-out/' || true)
+if [ -z "$_NON_GRAPH" ]; then
+    exit 0
+fi
 
 # Detect the correct Python interpreter (handles pipx, venv, system installs)
 GRAPHIFY_BIN=$(command -v graphify 2>/dev/null)
@@ -84,30 +59,40 @@ if [ -z "$GRAPHIFY_PYTHON" ]; then
     fi
 fi
 
+export GRAPHIFY_CHANGED="$CHANGED"
+
+# Run rebuild detached so git commit returns immediately.
+# Full repo rebuilds can take hours; blocking the post-commit hook stalls the shell.
 _GRAPHIFY_LOG="${HOME}/.cache/graphify-rebuild.log"
 mkdir -p "$(dirname "$_GRAPHIFY_LOG")"
-echo "[graphify] Branch switched - launching background rebuild (log: $_GRAPHIFY_LOG)"
+echo "[graphify hook] launching background rebuild (log: $_GRAPHIFY_LOG)"
 nohup $GRAPHIFY_PYTHON -c "
-from graphify.watch import _rebuild_code, _apply_resource_limits
-from pathlib import Path
 import os, signal, sys
+from pathlib import Path
+
+changed_raw = os.environ.get('GRAPHIFY_CHANGED', '')
+changed = [Path(f.strip()) for f in changed_raw.strip().splitlines() if f.strip()]
+
+if not changed:
+    sys.exit(0)
+
+print(f'[graphify hook] {len(changed)} file(s) changed - rebuilding graph...')
+
 try:
+    from graphify.watch import _rebuild_code, _apply_resource_limits
     _apply_resource_limits()
     _timeout = int(os.environ.get('GRAPHIFY_REBUILD_TIMEOUT', '600'))
     if _timeout > 0 and hasattr(signal, 'SIGALRM'):
         signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'graphify rebuild exceeded {_timeout}s')))
         signal.alarm(_timeout)
     _force = os.environ.get('GRAPHIFY_FORCE', '').lower() in ('1', 'true', 'yes')
-    # post-checkout: branch switch can touch arbitrary files; full rebuild path
-    # (no changed_paths) is correct here. The flock inside _rebuild_code still
-    # prevents pile-ups when commit + checkout fire back-to-back.
-    _rebuild_code(Path('.'), force=_force)
+    _rebuild_code(Path('.'), changed_paths=changed, force=_force)
 except TimeoutError as exc:
-    print(f'[graphify] {exc}')
+    print(f'[graphify hook] {exc}')
     sys.exit(1)
 except Exception as exc:
-    print(f'[graphify] Rebuild failed: {exc}')
+    print(f'[graphify hook] Rebuild failed: {exc}')
     sys.exit(1)
 " >> "$_GRAPHIFY_LOG" 2>&1 < /dev/null &
 disown 2>/dev/null || true
-# graphify-checkout-hook-end
+# graphify-hook-end
