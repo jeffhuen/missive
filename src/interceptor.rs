@@ -141,6 +141,8 @@ where
     }
 
     async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
+        // Raw delivery has not been prepared by this wrapper yet, so apply the
+        // interceptor once and let the inner mailer own preparation.
         let email = self.interceptor.intercept(email.clone())?;
         self.inner.deliver(&email).await
     }
@@ -158,6 +160,8 @@ where
     }
 
     async fn deliver_many(&self, emails: &[Email]) -> Result<Vec<DeliveryResult>, MailError> {
+        // Raw batch delivery mirrors deliver(): intercept once before handing
+        // the unprepared emails to the inner mailer's pipeline.
         let intercepted: Result<Vec<Email>, MailError> = emails
             .iter()
             .map(|e| self.interceptor.intercept(e.clone()))
@@ -352,6 +356,45 @@ mod tests {
         EmailClient::new(mailer).deliver_many(emails).await.unwrap();
 
         assert_eq!(recorder.subjects(), vec!["One!", "Two!"]);
+    }
+
+    #[tokio::test]
+    async fn email_client_stacked_interceptors_apply_once_each_in_order() {
+        let recorder = RecordingMailer::default();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let inner_calls = Arc::clone(&calls);
+        let outer_calls = Arc::clone(&calls);
+        let mailer = recorder
+            .clone()
+            .with_interceptor(move |email: Email| {
+                inner_calls
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push("inner");
+                let subject = format!("{}I", email.subject_line());
+                Ok(email.subject(subject))
+            })
+            .with_interceptor(move |email: Email| {
+                outer_calls
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push("outer");
+                let subject = format!("{}O", email.subject_line());
+                Ok(email.subject(subject))
+            });
+        let email = Email::new()
+            .from("sender@example.com")
+            .to("recipient@example.com")
+            .subject("Hi");
+
+        EmailClient::new(mailer).deliver(email).await.unwrap();
+
+        assert_eq!(recorder.subjects(), vec!["HiOI"]);
+        let calls = calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(calls, vec!["outer", "inner"]);
     }
 
     #[tokio::test]
