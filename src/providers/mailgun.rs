@@ -233,8 +233,7 @@ impl MailgunMailer {
 
             let part = Part::bytes(data)
                 .file_name(attachment.filename.clone())
-                .mime_str(&attachment.content_type)
-                .map_err(|e| MailError::AttachmentError(e.to_string()))?;
+                .mime_str(&attachment.content_type)?;
 
             form = form.part(field_name, part);
         }

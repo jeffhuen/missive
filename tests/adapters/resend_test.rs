@@ -343,6 +343,17 @@ async fn deliver_with_429_response() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(err.to_string().contains("Too many requests"));
+    assert_eq!(err.kind(), "provider_error");
+    assert_eq!(err.provider_status(), Some(429));
+    match err {
+        MailError::ProviderError {
+            provider, status, ..
+        } => {
+            assert_eq!(provider, "resend");
+            assert_eq!(status, Some(429));
+        }
+        other => panic!("expected provider error, got {other:?}"),
+    }
 }
 
 #[tokio::test]

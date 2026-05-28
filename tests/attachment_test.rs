@@ -149,7 +149,7 @@ fn base64_data_returns_error_when_lazy_file_cannot_be_read() {
     let attachment = Attachment::from_path_lazy(&path).unwrap();
 
     let err = attachment.base64_data().unwrap_err();
-    assert!(matches!(err, MailError::AttachmentReadError(_)));
+    assert!(matches!(err, MailError::AttachmentReadError { .. }));
 
     fs::remove_dir(&path).unwrap();
 }

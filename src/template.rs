@@ -78,9 +78,7 @@ pub trait EmailTemplate: Template {
     where
         Self: Sized,
     {
-        let html = self
-            .render()
-            .map_err(|e| MailError::TemplateError(e.to_string()))?;
+        let html = self.render()?;
 
         let mut email = Email::new()
             .subject(self.subject())

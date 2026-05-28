@@ -246,10 +246,7 @@ struct GmailResponse {
 
 /// Convert our Address to lettre's Mailbox.
 fn address_to_mailbox(addr: &Address) -> Result<Mailbox, MailError> {
-    let email = addr
-        .email
-        .parse()
-        .map_err(|e: lettre::address::AddressError| MailError::InvalidAddress(e.to_string()))?;
+    let email = addr.email.parse()?;
 
     Ok(Mailbox::new(addr.name.clone(), email))
 }

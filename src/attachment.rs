@@ -94,11 +94,14 @@ impl Attachment {
             .unwrap_or("attachment")
             .to_string();
 
-        let data = std::fs::read(path).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
+        let data = std::fs::read(path).map_err(|source| {
+            if source.kind() == std::io::ErrorKind::NotFound {
                 MailError::AttachmentFileNotFound(path.display().to_string())
             } else {
-                MailError::AttachmentReadError(format!("{}: {}", path.display(), e))
+                MailError::AttachmentReadError {
+                    path: path.display().to_string(),
+                    source,
+                }
             }
         })?;
 
@@ -199,11 +202,14 @@ impl Attachment {
     pub fn get_data(&self) -> Result<Vec<u8>, MailError> {
         if let Some(ref path) = self.path {
             // Lazy load from path
-            std::fs::read(path).map_err(|e| {
-                if e.kind() == std::io::ErrorKind::NotFound {
+            std::fs::read(path).map_err(|source| {
+                if source.kind() == std::io::ErrorKind::NotFound {
                     MailError::AttachmentFileNotFound(path.clone())
                 } else {
-                    MailError::AttachmentReadError(format!("{}: {}", path, e))
+                    MailError::AttachmentReadError {
+                        path: path.clone(),
+                        source,
+                    }
                 }
             })
         } else if self.data.is_empty() && self.path.is_none() {
@@ -233,8 +239,16 @@ impl Attachment {
     /// Get the accurate size, loading from path if necessary.
     pub fn get_size(&self) -> Result<usize, MailError> {
         if let Some(ref path) = self.path {
-            let metadata =
-                std::fs::metadata(path).map_err(|e| MailError::AttachmentError(e.to_string()))?;
+            let metadata = std::fs::metadata(path).map_err(|source| {
+                if source.kind() == std::io::ErrorKind::NotFound {
+                    MailError::AttachmentFileNotFound(path.clone())
+                } else {
+                    MailError::AttachmentReadError {
+                        path: path.clone(),
+                        source,
+                    }
+                }
+            })?;
             Ok(metadata.len() as usize)
         } else {
             Ok(self.data.len())

@@ -780,27 +780,6 @@ fn prepare_email(email: &Email) -> Email {
     email.clone()
 }
 
-fn mail_error_kind(error: &MailError) -> &'static str {
-    match error {
-        MailError::NotConfigured => "not_configured",
-        MailError::Configuration(_) => "configuration",
-        MailError::MissingField(_) => "missing_field",
-        MailError::InvalidAddress(_) => "invalid_address",
-        MailError::AttachmentError(_) => "attachment_error",
-        MailError::AttachmentMissingContent(_) => "attachment_missing_content",
-        MailError::AttachmentFileNotFound(_) => "attachment_file_not_found",
-        MailError::AttachmentReadError(_) => "attachment_read_error",
-        MailError::BuildError(_) => "build_error",
-        MailError::SendError(_) => "send_error",
-        MailError::UnsupportedFeature(_) => "unsupported_feature",
-        MailError::ProviderError { .. } => "provider_error",
-        MailError::HttpError(_) => "http_error",
-        MailError::JsonError(_) => "json_error",
-        MailError::TemplateError(_) => "template_error",
-        MailError::Internal(_) => "internal",
-    }
-}
-
 /// Deliver an email using the global mailer.
 ///
 /// Auto-configures from environment variables on first call.
@@ -877,7 +856,7 @@ pub async fn deliver(email: &Email) -> Result<DeliveryResult, MailError> {
                 recipient_count = recipient_count,
                 attachment_count = attachment_count,
                 duration_ms = duration_ms,
-                error_kind = mail_error_kind(e),
+                error_kind = e.kind(),
                 "Email delivery failed",
             );
             tracing::debug!(error = %e, "Email delivery error details");
@@ -964,7 +943,7 @@ pub async fn deliver_with<M: Mailer>(
                 recipient_count = recipient_count,
                 attachment_count = attachment_count,
                 duration_ms = duration_ms,
-                error_kind = mail_error_kind(e),
+                error_kind = e.kind(),
                 "Email delivery failed",
             );
             tracing::debug!(error = %e, "Email delivery error details");

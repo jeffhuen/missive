@@ -162,11 +162,7 @@ impl Mailer for SmtpMailer {
     async fn deliver(&self, email: &Email) -> Result<DeliveryResult, MailError> {
         let message = self.build_message(email)?;
 
-        let response = self
-            .transport
-            .send(message)
-            .await
-            .map_err(|e| MailError::SendError(e.to_string()))?;
+        let response = self.transport.send(message).await?;
 
         // Extract message ID from SMTP response, or generate one
         let message_id = response
@@ -263,10 +259,7 @@ impl SmtpBuilder {
 
 /// Convert our Address to lettre's Mailbox.
 fn address_to_mailbox(addr: &Address) -> Result<Mailbox, MailError> {
-    let email = addr
-        .email
-        .parse()
-        .map_err(|e: lettre::address::AddressError| MailError::InvalidAddress(e.to_string()))?;
+    let email = addr.email.parse()?;
 
     Ok(Mailbox::new(addr.name.clone(), email))
 }

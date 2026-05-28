@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// Errors that can occur when sending emails.
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 pub enum MailError {
     /// Email provider is not configured.
     #[error("Email provider not configured")]
@@ -34,8 +34,14 @@ pub enum MailError {
     AttachmentFileNotFound(String),
 
     /// Failed to read attachment file.
-    #[error("Failed to read attachment: {0}")]
-    AttachmentReadError(String),
+    #[error("Failed to read attachment {path}: {source}")]
+    AttachmentReadError {
+        /// Attachment path that failed to read.
+        path: String,
+        /// Underlying IO error.
+        #[source]
+        source: std::io::Error,
+    },
 
     /// Error building the email message.
     #[error("Build error: {0}")]
@@ -59,16 +65,37 @@ pub enum MailError {
     },
 
     /// HTTP request failed.
+    #[cfg(feature = "_http")]
     #[error("HTTP error: {0}")]
-    HttpError(String),
+    HttpError(#[from] reqwest::Error),
 
     /// JSON serialization/deserialization error.
     #[error("JSON error: {0}")]
-    JsonError(String),
+    JsonError(#[from] serde_json::Error),
 
     /// Template rendering error.
     #[error("Template error: {0}")]
     TemplateError(String),
+
+    /// Template rendering failed with a source error.
+    #[cfg(feature = "templates")]
+    #[error("Template error: {0}")]
+    TemplateRenderError(#[from] askama::Error),
+
+    /// Email message construction failed with a lettre source error.
+    #[cfg(feature = "smtp")]
+    #[error("Build error: {0}")]
+    LettreBuildError(#[from] lettre::error::Error),
+
+    /// SMTP transport failed with a lettre source error.
+    #[cfg(feature = "smtp")]
+    #[error("Send error: {0}")]
+    SmtpError(#[from] lettre::transport::smtp::Error),
+
+    /// Lettre address parsing failed.
+    #[cfg(feature = "smtp")]
+    #[error("Invalid email address: {0}")]
+    LettreAddressError(#[from] lettre::address::AddressError),
 
     /// Generic internal error.
     #[error("Internal error: {0}")]
@@ -97,38 +124,43 @@ impl MailError {
             status: Some(status),
         }
     }
-}
 
-#[cfg(feature = "_http")]
-impl From<reqwest::Error> for MailError {
-    fn from(err: reqwest::Error) -> Self {
-        Self::HttpError(err.to_string())
+    /// Stable classification string for logs, metrics, and retry policies.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            MailError::NotConfigured => "not_configured",
+            MailError::Configuration(_) => "configuration",
+            MailError::MissingField(_) => "missing_field",
+            MailError::InvalidAddress(_) => "invalid_address",
+            MailError::AttachmentError(_) => "attachment_error",
+            MailError::AttachmentMissingContent(_) => "attachment_missing_content",
+            MailError::AttachmentFileNotFound(_) => "attachment_file_not_found",
+            MailError::AttachmentReadError { .. } => "attachment_read_error",
+            MailError::BuildError(_) => "build_error",
+            MailError::SendError(_) => "send_error",
+            MailError::UnsupportedFeature(_) => "unsupported_feature",
+            MailError::ProviderError { .. } => "provider_error",
+            #[cfg(feature = "_http")]
+            MailError::HttpError(_) => "http_error",
+            MailError::JsonError(_) => "json_error",
+            MailError::TemplateError(_) => "template_error",
+            #[cfg(feature = "templates")]
+            MailError::TemplateRenderError(_) => "template_error",
+            #[cfg(feature = "smtp")]
+            MailError::LettreBuildError(_) => "build_error",
+            #[cfg(feature = "smtp")]
+            MailError::SmtpError(_) => "send_error",
+            #[cfg(feature = "smtp")]
+            MailError::LettreAddressError(_) => "invalid_address",
+            MailError::Internal(_) => "internal",
+        }
     }
-}
 
-impl From<serde_json::Error> for MailError {
-    fn from(err: serde_json::Error) -> Self {
-        Self::JsonError(err.to_string())
-    }
-}
-
-#[cfg(feature = "smtp")]
-impl From<lettre::error::Error> for MailError {
-    fn from(err: lettre::error::Error) -> Self {
-        Self::SendError(err.to_string())
-    }
-}
-
-#[cfg(feature = "smtp")]
-impl From<lettre::transport::smtp::Error> for MailError {
-    fn from(err: lettre::transport::smtp::Error) -> Self {
-        Self::SendError(err.to_string())
-    }
-}
-
-#[cfg(feature = "smtp")]
-impl From<lettre::address::AddressError> for MailError {
-    fn from(err: lettre::address::AddressError) -> Self {
-        Self::InvalidAddress(err.to_string())
+    /// HTTP status reported by a provider error, when available.
+    pub fn provider_status(&self) -> Option<u16> {
+        match self {
+            MailError::ProviderError { status, .. } => *status,
+            _ => None,
+        }
     }
 }
