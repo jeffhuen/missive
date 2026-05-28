@@ -54,8 +54,8 @@ use missive::MailError;
 
 let mailer = ResendMailer::new(api_key)
     .with_interceptor(|email: Email| {
-        for recipient in &email.to {
-            if recipient.email.ends_with("@competitor.com") {
+        for recipient in email.to_addresses() {
+            if recipient.email().ends_with("@competitor.com") {
                 return Err(MailError::SendError(
                     "Cannot send to competitor.com".into()
                 ));
@@ -77,13 +77,14 @@ struct TenantBranding {
 
 impl Interceptor for TenantBranding {
     fn intercept(&self, email: Email) -> Result<Email, MailError> {
-        let html = email.html_body
-            .as_ref()
+        let html = email.html_body_content()
             .map(|h| format!("{}\n{}", h, self.footer_html));
-        
-        Ok(email
-            .header("X-Tenant-ID", &self.tenant_id)
-            .html_body(html.unwrap_or_default()))
+
+        let email = email.header("X-Tenant-ID", &self.tenant_id);
+        Ok(match html {
+            Some(html) => email.html_body(html),
+            None => email,
+        })
     }
 }
 
@@ -149,7 +150,7 @@ Each interceptor should do one thing and not depend on other interceptors. If yo
 .with_interceptor(|e| Ok(e.header("X-Priority", "high")))
 .with_interceptor(|e| {
     // Depends on previous interceptor's header
-    if e.headers.get("X-Priority") == Some(&"high".into()) {
+    if e.headers().get("X-Priority") == Some(&"high".into()) {
         Ok(e.header("X-Route", "fast"))
     } else {
         Ok(e)

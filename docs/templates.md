@@ -413,8 +413,8 @@ fn test_email_conversion() {
     };
 
     let email = template.into_email().unwrap();
-    assert_eq!(email.subject, "Welcome!");
-    assert!(email.html_body.unwrap().contains("Alice"));
+    assert_eq!(email.subject_line(), "Welcome!");
+    assert!(email.html_body_content().unwrap().contains("Alice"));
 }
 ```
 

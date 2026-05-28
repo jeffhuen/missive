@@ -283,13 +283,24 @@ let email = Email::new()
 Pass options specific to your email provider:
 
 ```rust
-// Resend: tags and scheduling
-let email = Email::new()
-    .provider_option("tags", json!([{"name": "category", "value": "welcome"}]))
-    .provider_option("scheduled_at", "2024-12-01T00:00:00Z");
+use chrono::{Duration, Utc};
+use missive::Email;
+use missive::providers::ResendEmailExt;
+use serde_json::json;
 
-// SendGrid: categories and tracking
+// Resend: typed tags, scheduling, and idempotency
 let email = Email::new()
+    .to("user@example.com")
+    .subject("Welcome")
+    .resend_tag("category", "welcome")
+    .resend_scheduled_at(Utc::now() + Duration::hours(1))
+    .resend_idempotency_key("welcome-123");
+
+// SendGrid: raw options remain available for provider features
+// that do not have typed helpers yet
+let email = Email::new()
+    .to("user@example.com")
+    .subject("Welcome")
     .provider_option("categories", json!(["transactional", "welcome"]))
     .provider_option("tracking_settings", json!({"click_tracking": {"enable": true}}));
 ```
@@ -519,7 +530,7 @@ See [docs/preview.md](./docs/preview.md) for Actix configuration.
 Interceptors let you modify or block emails before they are sent. Use them to add headers, redirect recipients in development, or enforce business rules.
 
 ```rust
-use missive::{Email, InterceptorExt};
+use missive::{Email, InterceptorExt, MailError};
 use missive::providers::ResendMailer;
 
 let mailer = ResendMailer::new(api_key)
@@ -529,8 +540,8 @@ let mailer = ResendMailer::new(api_key)
     })
     // Block emails to certain domains
     .with_interceptor(|email: Email| {
-        for recipient in &email.to {
-            if recipient.email.ends_with("@blocked.com") {
+        for recipient in email.to_addresses() {
+            if recipient.email().ends_with("@blocked.com") {
                 return Err(MailError::SendError("Blocked domain".into()));
             }
         }
@@ -713,6 +724,47 @@ let email = Email::new()
     .render_html(&template)?;
 ```
 
+## Migrating To The v0.7 API
+
+The v0.7 cleanup makes the explicit client API the primary path and keeps the
+global delivery facade only for compatibility.
+
+Before:
+
+```rust
+use missive::providers::ResendMailer;
+
+missive::configure(ResendMailer::new(api_key));
+missive::deliver(&email).await?;
+```
+
+After:
+
+```rust
+use missive::EmailClient;
+use missive::providers::ResendMailer;
+
+let client = EmailClient::new(ResendMailer::new(api_key))
+    .with_default_from("noreply@example.com");
+
+client.deliver(email).await?;
+```
+
+For environment-based setup, prefer an explicit startup call:
+
+```rust
+use missive::EmailClient;
+
+let client = EmailClient::from_env()?;
+client.deliver(email).await?;
+```
+
+Other breaking migrations include private struct fields with accessor methods,
+typed provider option helpers, attachment read errors that now fail delivery,
+and `MailError` variants that preserve source errors. See the
+[v0.7 migration guide](./docs/migration-v0.7.md) for old-to-new examples and
+rationale.
+
 ## API Reference
 
 ### Core API
@@ -756,6 +808,7 @@ For more detailed guides, see the [docs/](./docs/) folder:
 - [Observability](./docs/observability.md) - Telemetry, metrics, Grafana dashboards, and alerting
 - [Preview](./docs/preview.md) - Mailbox preview UI configuration
 - [Templates](./docs/templates.md) - Askama template integration
+- [v0.7 Migration](./docs/migration-v0.7.md) - Breaking API changes and old-to-new examples
 
 ## Acknowledgments
 

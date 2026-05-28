@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Migration Guide
+
+- Documented the v0.7 migration path from process-global delivery to explicit
+  `EmailClient` ownership for application state and dependency injection.
+- Documented explicit environment setup with `EmailClient::from_env()` and
+  `MailerConfig::from_env()` so provider selection happens at startup.
+- Documented private `Email`, `Address`, and `Attachment` field replacements
+  with accessors and builder methods.
+- Documented typed provider option helpers, starting with Resend's
+  `ResendEmailExt`, while keeping raw `.provider_option(...)` as an advanced
+  escape hatch.
+- Documented attachment read failures, async lazy attachment I/O behavior, local
+  preview storage ownership, address/header serialization, and preserved
+  `MailError` source chains.
+
 ## [0.6.2] - 2026-01-19
 
 ### Deprecated

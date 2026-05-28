@@ -94,9 +94,9 @@ Use `assert_email_matches` for complex assertions:
 
 ```rust
 assert_email_matches(&mailer, |email| {
-    email.to.iter().any(|a| a.email.ends_with("@company.com"))
-        && email.subject.contains("Invoice")
-        && email.attachments.len() > 0
+    email.to_addresses().iter().any(|a| a.email().ends_with("@company.com"))
+        && email.subject_line().contains("Invoice")
+        && !email.attachments().is_empty()
 });
 ```
 
@@ -169,14 +169,14 @@ let emails = mailer.emails();
 // Get most recent email
 if let Some(stored) = mailer.last_email() {
     let email = &stored.email;
-    println!("To: {:?}", email.to);
-    println!("Subject: {}", email.subject);
-    println!("HTML: {:?}", email.html_body);
-    println!("Attachments: {}", email.attachments.len());
+    println!("To: {:?}", email.to_addresses());
+    println!("Subject: {}", email.subject_line());
+    println!("HTML: {:?}", email.html_body_content());
+    println!("Attachments: {}", email.attachments().len());
 }
 
 // Find specific emails
-let welcome_emails = mailer.find_emails(|e| e.subject.contains("Welcome"));
+let welcome_emails = mailer.find_emails(|e| e.subject_line().contains("Welcome"));
 ```
 
 ## Integration with Test Frameworks
