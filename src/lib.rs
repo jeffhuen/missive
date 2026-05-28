@@ -137,8 +137,6 @@ pub use template::{EmailTemplate, EmailTemplateExt};
 use parking_lot::RwLock;
 use std::env;
 use std::sync::Arc;
-
-#[cfg(feature = "metrics")]
 use std::time::Instant;
 
 // Re-exports
@@ -782,6 +780,27 @@ fn prepare_email(email: &Email) -> Email {
     email.clone()
 }
 
+fn mail_error_kind(error: &MailError) -> &'static str {
+    match error {
+        MailError::NotConfigured => "not_configured",
+        MailError::Configuration(_) => "configuration",
+        MailError::MissingField(_) => "missing_field",
+        MailError::InvalidAddress(_) => "invalid_address",
+        MailError::AttachmentError(_) => "attachment_error",
+        MailError::AttachmentMissingContent(_) => "attachment_missing_content",
+        MailError::AttachmentFileNotFound(_) => "attachment_file_not_found",
+        MailError::AttachmentReadError(_) => "attachment_read_error",
+        MailError::BuildError(_) => "build_error",
+        MailError::SendError(_) => "send_error",
+        MailError::UnsupportedFeature(_) => "unsupported_feature",
+        MailError::ProviderError { .. } => "provider_error",
+        MailError::HttpError(_) => "http_error",
+        MailError::JsonError(_) => "json_error",
+        MailError::TemplateError(_) => "template_error",
+        MailError::Internal(_) => "internal",
+    }
+}
+
 /// Deliver an email using the global mailer.
 ///
 /// Auto-configures from environment variables on first call.
@@ -805,37 +824,64 @@ pub async fn deliver(email: &Email) -> Result<DeliveryResult, MailError> {
     let mailer = get_mailer()?;
     let provider = mailer.provider_name();
     let email = prepare_email(email);
+    let recipient_count = email.all_recipients().len();
+    let attachment_count = email.attachments.len();
 
     // Emit telemetry span
     let span = tracing::info_span!(
         "missive.deliver",
         provider = provider,
-        to = ?email.to.iter().map(|a| &a.email).collect::<Vec<_>>(),
-        subject = %email.subject,
+        recipient_count = recipient_count,
+        attachment_count = attachment_count,
+        status = tracing::field::Empty,
+        duration_ms = tracing::field::Empty,
     );
     let _guard = span.enter();
 
     tracing::debug!("Delivering email");
 
-    #[cfg(feature = "metrics")]
     let start = Instant::now();
 
     let result = mailer.deliver(&email).await;
+    let duration = start.elapsed();
+    let duration_ms = duration.as_millis() as u64;
+    let status = if result.is_ok() { "success" } else { "error" };
+    span.record("status", status);
+    span.record("duration_ms", duration_ms);
 
     // Record metrics
     #[cfg(feature = "metrics")]
     {
-        let duration = start.elapsed().as_secs_f64();
-        let status = if result.is_ok() { "success" } else { "error" };
         metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
             .increment(1);
         metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider)
-            .record(duration);
+            .record(duration.as_secs_f64());
     }
 
     match &result {
-        Ok(r) => tracing::info!(message_id = %r.message_id, "Email delivered"),
-        Err(e) => tracing::error!(error = %e, "Email delivery failed"),
+        Ok(r) => {
+            tracing::info!(
+                provider = provider,
+                status = status,
+                recipient_count = recipient_count,
+                attachment_count = attachment_count,
+                duration_ms = duration_ms,
+                "Email delivered",
+            );
+            tracing::debug!(message_id = %r.message_id, "Provider message id");
+        }
+        Err(e) => {
+            tracing::error!(
+                provider = provider,
+                status = status,
+                recipient_count = recipient_count,
+                attachment_count = attachment_count,
+                duration_ms = duration_ms,
+                error_kind = mail_error_kind(e),
+                "Email delivery failed",
+            );
+            tracing::debug!(error = %e, "Email delivery error details");
+        }
     }
 
     result
@@ -865,37 +911,64 @@ pub async fn deliver_with<M: Mailer>(
 
     let provider = mailer.provider_name();
     let email = prepare_email(email);
+    let recipient_count = email.all_recipients().len();
+    let attachment_count = email.attachments.len();
 
     // Emit telemetry span
     let span = tracing::info_span!(
         "missive.deliver",
         provider = provider,
-        to = ?email.to.iter().map(|a| &a.email).collect::<Vec<_>>(),
-        subject = %email.subject,
+        recipient_count = recipient_count,
+        attachment_count = attachment_count,
+        status = tracing::field::Empty,
+        duration_ms = tracing::field::Empty,
     );
     let _guard = span.enter();
 
     tracing::debug!("Delivering email");
 
-    #[cfg(feature = "metrics")]
     let start = Instant::now();
 
     let result = mailer.deliver(&email).await;
+    let duration = start.elapsed();
+    let duration_ms = duration.as_millis() as u64;
+    let status = if result.is_ok() { "success" } else { "error" };
+    span.record("status", status);
+    span.record("duration_ms", duration_ms);
 
     // Record metrics
     #[cfg(feature = "metrics")]
     {
-        let duration = start.elapsed().as_secs_f64();
-        let status = if result.is_ok() { "success" } else { "error" };
         metrics::counter!("missive_emails_total", "provider" => provider, "status" => status)
             .increment(1);
         metrics::histogram!("missive_delivery_duration_seconds", "provider" => provider)
-            .record(duration);
+            .record(duration.as_secs_f64());
     }
 
     match &result {
-        Ok(r) => tracing::info!(message_id = %r.message_id, "Email delivered"),
-        Err(e) => tracing::error!(error = %e, "Email delivery failed"),
+        Ok(r) => {
+            tracing::info!(
+                provider = provider,
+                status = status,
+                recipient_count = recipient_count,
+                attachment_count = attachment_count,
+                duration_ms = duration_ms,
+                "Email delivered",
+            );
+            tracing::debug!(message_id = %r.message_id, "Provider message id");
+        }
+        Err(e) => {
+            tracing::error!(
+                provider = provider,
+                status = status,
+                recipient_count = recipient_count,
+                attachment_count = attachment_count,
+                duration_ms = duration_ms,
+                error_kind = mail_error_kind(e),
+                "Email delivery failed",
+            );
+            tracing::debug!(error = %e, "Email delivery error details");
+        }
     }
 
     result
