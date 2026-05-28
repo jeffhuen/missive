@@ -262,6 +262,41 @@ async fn deliver_with_missing_lazy_attachment_returns_attachment_error() {
     assert!(matches!(err, MailError::AttachmentFileNotFound(_)));
 }
 
+#[tokio::test]
+async fn deliver_with_lazy_attachment_sends_file_contents() {
+    let server = MockServer::start().await;
+    let mailer = ResendMailer::new("re_123456789").base_url(server.uri());
+    let filename = format!("missive-resend-lazy-attachment-{}.txt", std::process::id());
+    let attachment_path = std::env::temp_dir().join(&filename);
+    fs::write(&attachment_path, b"assemble").unwrap();
+
+    let email = valid_email().attachment(Attachment::from_path_lazy(&attachment_path).unwrap());
+
+    Mock::given(method("POST"))
+        .and(path("/emails"))
+        .and(body_json(json!({
+            "from": "tony.stark@example.com",
+            "to": ["steve.rogers@example.com"],
+            "subject": "Hello, Avengers!",
+            "html": "<h1>Hello</h1>",
+            "text": "Hello",
+            "attachments": [{
+                "filename": filename,
+                "content": "YXNzZW1ibGU=",
+                "content_type": "text/plain"
+            }]
+        })))
+        .respond_with(success_response())
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let result = mailer.deliver(&email).await;
+    fs::remove_file(&attachment_path).unwrap();
+
+    assert!(result.is_ok());
+}
+
 // ============================================================================
 // Error Response Tests
 // ============================================================================

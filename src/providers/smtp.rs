@@ -270,3 +270,54 @@ fn address_to_mailbox(addr: &Address) -> Result<Mailbox, MailError> {
 
     Ok(Mailbox::new(addr.name.clone(), email))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Attachment, Email};
+    use std::fs;
+
+    #[test]
+    fn build_message_loads_lazy_attachment_data() {
+        let path = std::env::temp_dir().join(format!(
+            "missive-smtp-lazy-attachment-{}.txt",
+            std::process::id()
+        ));
+        fs::write(&path, b"assemble").unwrap();
+
+        let mailer = SmtpMailer::localhost();
+        let email = Email::new()
+            .from("tony.stark@example.com")
+            .to("steve.rogers@example.com")
+            .subject("Hello, Avengers!")
+            .text_body("Hello")
+            .attachment(Attachment::from_path_lazy(&path).unwrap());
+
+        let message = mailer.build_message(&email).unwrap();
+        fs::remove_file(&path).unwrap();
+
+        let raw = String::from_utf8(message.formatted()).unwrap();
+        assert!(raw.contains("assemble"));
+    }
+
+    #[test]
+    fn build_message_returns_error_for_missing_lazy_attachment() {
+        let path = std::env::temp_dir().join(format!(
+            "missive-smtp-missing-attachment-{}.txt",
+            std::process::id()
+        ));
+        fs::write(&path, b"assemble").unwrap();
+
+        let mailer = SmtpMailer::localhost();
+        let email = Email::new()
+            .from("tony.stark@example.com")
+            .to("steve.rogers@example.com")
+            .subject("Hello, Avengers!")
+            .text_body("Hello")
+            .attachment(Attachment::from_path_lazy(&path).unwrap());
+        fs::remove_file(&path).unwrap();
+
+        let err = mailer.build_message(&email).unwrap_err();
+        assert!(matches!(err, MailError::AttachmentFileNotFound(_)));
+    }
+}
