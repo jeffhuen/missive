@@ -1,287 +1,155 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
 ## [0.7.0] - 2026-05-28
-
-### Breaking Changes
-
-- Made `Email`, `Address`, and `Attachment` fields private. Use builder methods
-  for construction and accessor methods such as `email.to_addresses()`,
-  `email.subject_line()`, `address.email()`, and `attachment.data()` for reads.
-- Changed attachment encoding/read paths to return errors instead of silently
-  substituting empty attachment content. `Attachment::base64_data()` now returns
-  `Result<String, MailError>`, and delivery propagates lazy attachment read
-  failures.
-- Removed process-global local preview storage behavior. `local_storage()` is
-  retained only as a deprecated compatibility facade and returns `None`; create
-  `LocalMailer` explicitly and pass `mailer.storage()` to preview APIs.
-- Removed the deprecated `MailerExt::validate()` trait method. Use
-  `Email::is_valid()` for a quick local check, or rely on `EmailClient`,
-  `deliver()`, and `deliver_with()` validation for default sender handling.
-- Changed `MailError` to preserve source errors for HTTP, SMTP, lettre build,
-  template, and attachment I/O failures. Code that required cloning errors
-  should store a string representation or wrap the error at the application
-  boundary. `MailError` no longer implements `Clone`.
-- Changed `SmtpBuilder::build()` and `ProtonBridgeBuilder::build()` to return
-  `Result<_, MailError>` so invalid relay/TLS setup cannot silently fall back
-  to plaintext SMTP.
-- Marked `MailError`, `MailerConfig`, and SMTP `TlsMode` as non-exhaustive so
-  downstream code keeps wildcard handling for future provider and error cases.
-
-### Added
-
-- Added `EmailClient<M>` as the primary instance-owned delivery API for
-  dependency injection and application state.
-- Added explicit environment configuration through `EmailClient::from_env()`,
-  `EmailClient::from_env_with(...)`, and `MailerConfig::from_env()`.
-- Added typed Resend provider option helpers through `ResendEmailExt`.
-- Added `PreparedEmail` validation before provider delivery so required sender,
-  recipient, and address checks happen consistently before adapter code runs.
-- Added `EMAIL_PROVIDER=mailjet` and Mailjet credential auto-detection through
-  `MAILJET_API_KEY` and `MAILJET_SECRET_KEY`, fixing the provider selection gap
-  reported in [#3](https://github.com/jeffhuen/missive/issues/3) and porting
-  the intent of [#4](https://github.com/jeffhuen/missive/pull/4). Thanks
-  [@emmiegit](https://github.com/emmiegit).
-- Added `wasm32-unknown-unknown` compile support for core, logger, local, and
-  HTTP JSON providers, addressing [#2](https://github.com/jeffhuen/missive/issues/2).
-- Added a public `wasm` marker feature so users can opt in with
-  `features = ["wasm", "resend"]` while the implementation remains
-  target-specific.
 
 ### Changed
 
-- Provider adapters now normalize outbound address domains with IDNA/Punycode
-  and preserve custom headers where supported.
-- Lazy attachment reads in async provider delivery are offloaded through the
-  Tokio-backed attachment I/O path instead of blocking async worker threads.
-- Attachment byte storage is shared for clones, reducing memory amplification
-  when emails with large attachments are cloned.
-- Default delivery telemetry no longer records recipient addresses or subject
-  lines at info level.
-- `full` feature documentation now matches the actual feature bundle.
-- Mailjet provider options now include `track_opens`, `track_clicks`, and
-  `url_tags`, matching the corresponding Swoosh Mailjet adapter options.
-- WASM builds now use target-specific dependency features, `web-time::Instant`,
-  `uuid/js`, `#[async_trait(?Send)]`, thread-local global mailer storage, and
-  pure-Rust Amazon SES HMAC signing.
-- Delivery telemetry now instruments async spans without holding an entered span
-  guard across `.await` points.
-- SMTP environment configuration now parses `SMTP_TLS` as `starttls`, `tls`, or
-  `none`; `opportunistic` is rejected because it can hide TLS downgrades.
+- **Breaking:** Made `Email`, `Address`, and `Attachment` fields private. Use
+  builder methods for construction and accessor methods such as
+  `email.to_addresses()`, `email.subject_line()`, `address.email()`, and
+  `attachment.data()` for reads.
+- **Breaking:** Changed `Attachment::base64_data()` to return
+  `Result<String, MailError>` and propagate attachment read failures during
+  delivery instead of substituting empty content.
+- **Breaking:** Changed `SmtpBuilder::build()` and
+  `ProtonBridgeBuilder::build()` to return `Result<_, MailError>`.
+- **Breaking:** Changed `MailError` to preserve source errors for HTTP, SMTP,
+  lettre build, template, and attachment I/O failures. `MailError` no longer
+  implements `Clone`.
+- **Breaking:** Marked `MailError`, `MailerConfig`, and SMTP `TlsMode` as
+  non-exhaustive so downstream matches need a wildcard arm.
+- Preferred explicit `EmailClient<M>` ownership over process-global delivery
+  configuration for application integration and dependency injection.
+- Changed default delivery telemetry so recipient addresses and subjects are no
+  longer recorded at info level.
+- Changed provider address serialization to normalize internationalized domains
+  with IDNA/Punycode where provider APIs require ASCII addresses.
+
+### Added
+
+- Added `EmailClient<M>` as the primary instance-owned delivery API.
+- Added environment configuration through `EmailClient::from_env()`,
+  `EmailClient::from_env_with(...)`, and `MailerConfig::from_env()`.
+- Added typed Resend provider options through `ResendEmailExt`.
+- Added Mailjet provider selection and credential auto-detection through
+  `EMAIL_PROVIDER=mailjet`, `MAILJET_API_KEY`, and `MAILJET_SECRET_KEY`,
+  fixing [#3](https://github.com/jeffhuen/missive/issues/3) and porting the
+  intent of [#4](https://github.com/jeffhuen/missive/pull/4). Thanks
+  [@emmiegit](https://github.com/emmiegit).
+- Added `wasm32-unknown-unknown` support for core types, logger/local mailers,
+  and HTTP JSON providers, addressing
+  [#2](https://github.com/jeffhuen/missive/issues/2).
+- Added a public `wasm` marker feature for explicit WASM builds, for example
+  `missive = { features = ["wasm", "resend"] }`.
+
+### Removed
+
+- **Breaking:** Removed the deprecated `MailerExt::validate()` trait method. Use
+  `Email::is_valid()` for a quick local check or delivery-time validation for
+  default sender handling.
+- **Breaking:** Removed process-global local preview storage behavior.
+  `local_storage()` is retained only as a deprecated compatibility facade and
+  returns `None`; create `LocalMailer` explicitly and pass `mailer.storage()` to
+  preview APIs.
 
 ### Fixed
 
-- Fixed lazy attachment handling across providers so path-backed attachments are
-  read during delivery and missing files fail the send.
-- Fixed current stable clippy failure in Amazon SES header sorting.
-- Fixed WASM compile blockers from `uuid` randomness, Tokio filesystem features,
-  native reqwest features, path-backed attachment I/O, JMAP's native cache lock,
-  and native-only provider modules.
-- Tightened native-only WASM feature diagnostics and avoided pulling Tokio into
-  supported HTTP-provider WASM builds.
-- Fixed `preview`, `preview-actix`, `dev`, and `--all-features` builds and
-  added CI coverage for those feature combinations.
-- Removed raw email addresses from address-validation warning logs.
-- Hardened Amazon SES raw MIME generation against CR/LF header injection and
-  encoded non-ASCII header values and attachment filenames.
-- Excluded Beads, agent, and GitHub workflow metadata from crates.io packages
-  and added a package assembly check to CI.
-
-### Migration Guide
-
-- Documented the v0.7 migration path from process-global delivery to explicit
-  `EmailClient` ownership for application state and dependency injection.
-- Documented explicit environment setup with `EmailClient::from_env()` and
-  `MailerConfig::from_env()` so provider selection happens at startup.
-- Documented private `Email`, `Address`, and `Attachment` field replacements
-  with accessors and builder methods.
-- Documented typed provider option helpers, starting with Resend's
-  `ResendEmailExt`, while keeping raw `.provider_option(...)` as an advanced
-  escape hatch.
-- Documented attachment read failures, async lazy attachment I/O behavior, local
-  preview storage ownership, address/header serialization, and preserved
-  `MailError` source chains.
+- Fixed lazy/path-backed attachments so missing files fail delivery instead of
+  sending empty content.
+- Fixed zero-byte attachments so intentionally empty files can be sent.
+- Fixed SMTP and Gmail invalid attachment MIME fallback to use
+  `application/octet-stream`.
+- Fixed Amazon SES Bcc delivery and inline attachment handling.
+- Fixed WASM compile support for supported providers and feature combinations.
+- Fixed SMTP TLS configuration so `SMTP_TLS` accepts `starttls`, `tls`, or
+  `none`, and rejects `opportunistic` rather than allowing silent downgrade.
+- Fixed Amazon SES raw MIME generation for non-ASCII headers, attachment
+  filenames, and CR/LF header-injection rejection.
+- Fixed feature-bundle documentation for `full`, `dev`, preview, and WASM
+  combinations.
 
 ## [0.6.2] - 2026-01-19
 
-### Deprecated
+### Changed
 
-- **`MailerExt::validate()`** - This method does not handle the `EMAIL_FROM` environment variable fallback, incorrectly rejecting valid emails. Use `Email::is_valid()` for a quick check or rely on `deliver()`/`deliver_with()` validation. Removed in 0.7.0. ([#1](https://github.com/jeffhuen/missive/issues/1))
+- Deprecated `MailerExt::validate()` because it does not apply the
+  `EMAIL_FROM` fallback. Use `Email::is_valid()` for a quick local check or
+  delivery-time validation through `deliver()` and `deliver_with()`. Removed in
+  0.7.0. ([#1](https://github.com/jeffhuen/missive/issues/1))
 
 ## [0.6.1] - 2026-01-17
 
 ### Fixed
 
-- Fixed clippy lint errors in JMAP provider (never_loop, unwrap_or_default, useless_conversion)
-- Fixed formatting issues in JMAP provider and test module ordering
+- Fixed Clippy lint errors in the JMAP provider.
+- Fixed formatting issues in the JMAP provider and test module ordering.
 
 ## [0.6.0] - 2026-01-17
 
 ### Added
 
-- **JMAP** - JMAP (JSON Meta Application Protocol) provider (`jmap` feature)
-  - Minimal spec-compliant implementation using reqwest+serde (no external JMAP crate)
-  - Works with any JMAP server: Stalwart, Fastmail, Cyrus, etc.
-  - Basic auth and Bearer token (OAuth2) authentication
-  - Full submission flow: session discovery, identity/mailbox lookup, Email/set, EmailSubmission/set
-  - Emails placed in drafts mailbox per RFC 8621, auto-deleted after successful submission
-  - See `docs/jmap-testing.md` for local testing with Docker
-
-- **Proton Bridge** - Proton Mail via local bridge (`protonbridge` feature)
-  - Thin wrapper around SMTP for Proton Bridge integration
-  - Pre-configured for localhost:1025, PLAIN auth, no TLS
-  - Requires [Proton Mail Bridge](https://proton.me/mail/bridge) running locally
-
-### Documentation
-
-- Added JMAP testing guide with Docker-based Stalwart setup (`docs/jmap-testing.md`)
+- Added JMAP provider support through the `jmap` feature, including session
+  discovery, basic authentication, bearer token authentication, and email
+  submission.
+- Added Proton Mail Bridge support through the `protonbridge` feature.
+- Added a Docker-based JMAP testing guide in `docs/jmap-testing.md`.
 
 ## [0.5.0] - 2026-01-13
 
 ### Added
 
-- **Gmail** - Gmail API provider (`gmail` feature)
-  - OAuth2 Bearer token authentication
-  - RFC 2822 message format via lettre (media upload with `uploadType=media`)
-  - Full support for HTML, text, attachments, CC, BCC, reply-to
-  - Response includes `threadId` and `labelIds` from Gmail
-
-- **SocketLabs** - SocketLabs Injection API provider (`socketlabs` feature)
-  - Bearer token authentication (v1 API keys have been decommissioned by SocketLabs)
-  - Support for AMP emails via `amp_body` provider option
-  - Merge data support for personalization
-  - Custom headers, message tracking IDs, and template support
-
-### Documentation
-
-- Added HTTP client architecture documentation explaining reqwest choice
+- Added Gmail API provider support through the `gmail` feature.
+- Added SocketLabs Injection API provider support through the `socketlabs`
+  feature.
+- Added HTTP client architecture documentation.
 
 ## [0.4.0] - 2026-01-09
 
-### Added
-
-- **Standalone preview server** via `tiny_http` (`preview` feature)
-  - `PreviewServer::new(addr, storage)` to create a server
-  - `.spawn()` for fire-and-forget background execution
-  - `.run()` for blocking mode
-  - `serve(addr, storage)` convenience function
-  - No framework dependencies - works with any Rust application
-  - See `docs/preview.md` for usage guide
-
 ### Changed
 
-- `preview` feature now uses standalone `tiny_http` server (was alias to `preview-axum`)
-- `preview-axum` and `preview-actix` remain for framework embedding
-- `dev` feature bundle now uses standalone preview
+- Changed the `preview` feature to use the standalone `tiny_http` preview
+  server instead of aliasing to `preview-axum`.
+- Changed the `dev` feature bundle to use the standalone preview server.
+
+### Added
+
+- Added standalone preview server support through the `preview` feature.
+- Added `PreviewServer::new(addr, storage)`, `PreviewServer::spawn()`,
+  `PreviewServer::run()`, and `serve(addr, storage)`.
 
 ## [0.3.0] - 2026-01-08
 
 ### Added
 
-- **Interceptors** for modifying or blocking emails before delivery
-  - `Interceptor` trait for custom email transformations
-  - `InterceptorExt` extension trait with `.with_interceptor()` method
-  - Closure support: `mailer.with_interceptor(|email| Ok(email.header("X-Foo", "bar")))`
-  - Chainable: multiple interceptors can be stacked
-  - Works with `deliver()` and `deliver_many()`
-  - See `docs/interceptors.md` for usage guide
+- Added interceptors for modifying or blocking emails before delivery.
+- Added `Interceptor`, `InterceptorExt`, closure-based interceptors, and
+  interceptor chaining.
 
 ## [0.2.0] - 2026-01-07
 
-### Added
-
-- **Actix-web support** for mailbox preview UI (`preview-actix` feature)
-  - `actix_configure()` function to mount routes on an Actix scope
-  - `ActixAppState` for shared state management
-- New feature flags:
-  - `preview-axum` - Axum-specific preview (extracted from `preview`)
-  - `preview-actix` - Actix-web preview support
-- `preview` feature now defaults to `preview-axum` for backwards compatibility
-
 ### Changed
 
-- Refactored preview module into shared core logic with thin framework adapters
-- Internal reorganization: `preview/core.rs`, `preview/axum_routes.rs`, `preview/actix_routes.rs`
+- Refactored preview routing into shared core logic with framework-specific
+  adapters.
+
+### Added
+
+- Added Actix-web support for mailbox preview UI through the `preview-actix`
+  feature.
+- Added `preview-axum` and `preview-actix` feature flags.
+- Added `actix_configure()` and `ActixAppState`.
 
 ## [0.1.0] - 2025-01-07
 
-Initial release.
-
 ### Added
 
-#### Email Providers
-- **SMTP** - Traditional SMTP delivery via lettre (`smtp` feature)
-- **Resend** - Resend API integration (`resend` feature)
-- **SendGrid** - SendGrid API integration (`sendgrid` feature)
-- **Postmark** - Postmark API integration (`postmark` feature)
-- **Unsent** - Unsent API integration (`unsent` feature)
-- **LocalMailer** - In-memory storage for development and testing (`local` feature)
-- **LoggerMailer** - Console logging without storage (always available)
-
-#### Email Composition
-- Fluent builder API for composing emails
-- Support for HTML and plain text bodies
-- Multiple recipients (to, cc, bcc)
-- Reply-to addresses
-- Custom headers
-- Provider-specific options via `.provider_option()`
-
-#### Attachments
-- `Attachment::from_bytes()` - Create from in-memory data
-- `Attachment::from_path()` - Eager file loading
-- `Attachment::from_path_lazy()` - Lazy file loading at send time
-- Inline attachments with Content-ID for HTML embedding
-- Automatic MIME type detection
-
-#### Email Validation
-- `Address::parse()` - RFC 5321/5322 compliant validation
-- `Address::parse_with_name()` - Validated name + email pairs
-- `Address::to_ascii()` - IDN/Punycode encoding for international domains
-- `ToAddress` trait for custom recipient types
-
-#### Testing Support
-- `LocalMailer` with in-memory storage for test assertions
-- Assertion helpers: `assert_email_sent`, `assert_email_to`, `assert_email_subject`, etc.
-- Regex assertions: `assert_email_subject_matches`, `assert_email_html_matches`
-- Failure simulation with `set_failure()` / `clear_failure()`
-- `flush_emails()` for atomic get-and-clear in multi-phase tests
-
-#### Development Tools
-- Mailbox preview web UI (`preview` feature)
-- HTML and plain text email preview
-- Attachment downloads
-- JSON API for programmatic access
-- CSP nonce support
-
-#### Observability
-- Tracing spans for all email deliveries
-- Prometheus-style metrics (`metrics` feature)
-  - `missive_emails_total` counter
-  - `missive_delivery_duration_seconds` histogram
-  - `missive_batch_total` counter
-  - `missive_batch_size` histogram
-
-#### Templates
-- Askama template integration (`templates` feature)
-- `EmailTemplate` trait for type-safe templates
-- `.render_html()` and `.render_text()` methods
-
-#### Configuration
-- Zero-config setup via environment variables
-- Auto-detection of provider from available API keys
-- `EMAIL_PROVIDER` for explicit provider selection
-- `EMAIL_FROM` / `EMAIL_FROM_NAME` for default sender
-- `init()` for environment-based initialization
-- `configure()` for programmatic setup
-
-#### Infrastructure
-- Batch sending with `deliver_many()`
-- Batch validation via `Mailer::validate_batch()`
-- User-Agent headers with version on all API requests
-- Detailed error types for different failure modes
+- Added SMTP, Resend, SendGrid, Postmark, Unsent, local, and logger mailers.
+- Added fluent email composition for HTML and plain text bodies, multiple
+  recipients, reply-to addresses, custom headers, provider options, and
+  attachments.
+- Added eager and lazy attachment loading, inline attachments, Content-ID
+  support, and MIME type detection.
+- Added address parsing, address formatting, IDN/Punycode conversion, and the
+  `ToAddress` trait.
+- Added local testing helpers and in-memory mail storage.
+- Added mailbox preview UI for development.
