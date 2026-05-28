@@ -229,12 +229,12 @@ fn handle_attachment(
 ) -> Response<io::Cursor<Vec<u8>>> {
     match core::get_attachment(storage, id, idx) {
         Some(att) => {
-            let cursor = io::Cursor::new(att.data);
+            let cursor = io::Cursor::new(att.data().to_vec());
             let content_type =
-                Header::from_bytes("Content-Type", att.content_type.as_bytes()).unwrap();
+                Header::from_bytes("Content-Type", att.mime_type().as_bytes()).unwrap();
             let disposition = Header::from_bytes(
                 "Content-Disposition",
-                format!("attachment; filename=\"{}\"", att.filename).as_bytes(),
+                format!("attachment; filename=\"{}\"", att.filename()).as_bytes(),
             )
             .unwrap();
 

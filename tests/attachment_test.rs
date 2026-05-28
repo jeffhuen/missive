@@ -120,6 +120,17 @@ fn get_data_returns_data() {
 }
 
 #[test]
+fn serde_keeps_attachment_data_field_shape() {
+    let attachment = Attachment::from_bytes("test.txt", b"abc".to_vec());
+    let value = serde_json::to_value(&attachment).unwrap();
+
+    assert_eq!(value["data"], serde_json::json!([97, 98, 99]));
+
+    let decoded: Attachment = serde_json::from_value(value).unwrap();
+    assert_eq!(decoded.data(), b"abc");
+}
+
+#[test]
 fn base64_data_returns_encoded_data() {
     let attachment = Attachment::from_bytes("test.txt", b"assemble".to_vec());
     // "assemble" in base64 is "YXNzZW1ibGU="
@@ -161,6 +172,27 @@ fn base64_data_returns_error_when_lazy_file_cannot_be_read() {
 fn size_returns_data_length() {
     let attachment = Attachment::from_bytes("test.txt", b"hello".to_vec());
     assert_eq!(attachment.size(), 5);
+}
+
+#[test]
+fn email_clone_shares_attachment_byte_storage() {
+    use missive::Email;
+
+    let email = Email::new()
+        .from("sender@example.com")
+        .to("recipient@example.com")
+        .subject("Large attachment")
+        .attachment(Attachment::from_bytes(
+            "report.pdf",
+            vec![0x42; 1024 * 1024],
+        ));
+
+    let cloned = email.clone();
+    let original_data = email.attachments()[0].data();
+    let cloned_data = cloned.attachments()[0].data();
+
+    assert_eq!(original_data.len(), cloned_data.len());
+    assert_eq!(original_data.as_ptr(), cloned_data.as_ptr());
 }
 
 // ============================================================================

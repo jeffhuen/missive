@@ -2,8 +2,29 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::error::MailError;
+
+mod shared_bytes_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::sync::Arc;
+
+    pub(super) fn serialize<S>(data: &Arc<[u8]>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        data.as_ref().serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<Arc<[u8]>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let data = Vec::<u8>::deserialize(deserializer)?;
+        Ok(Arc::from(data))
+    }
+}
 
 /// Type of attachment disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -47,8 +68,9 @@ pub struct Attachment {
     pub(crate) filename: String,
     /// MIME content type (e.g., "application/pdf", "image/png")
     pub(crate) content_type: String,
-    /// Raw attachment data (empty if using path-based lazy loading)
-    pub(crate) data: Vec<u8>,
+    /// Shared raw attachment data (empty if using path-based lazy loading)
+    #[serde(with = "shared_bytes_serde")]
+    pub(crate) data: Arc<[u8]>,
     /// File path for lazy loading.
     /// If set, data will be read from this path when needed.
     #[serde(default)]
@@ -75,7 +97,7 @@ impl Attachment {
         Self {
             filename,
             content_type,
-            data,
+            data: Arc::from(data),
             path: None,
             disposition: AttachmentType::Attachment,
             content_id: None,
@@ -112,7 +134,7 @@ impl Attachment {
         Ok(Self {
             filename,
             content_type,
-            data,
+            data: Arc::from(data),
             path: None, // Data is already loaded
             disposition: AttachmentType::Attachment,
             content_id: None,
@@ -151,7 +173,7 @@ impl Attachment {
         Ok(Self {
             filename,
             content_type,
-            data: Vec::new(), // Empty - will be loaded lazily
+            data: Arc::from(Vec::new()), // Empty - will be loaded lazily
             path: Some(path_string),
             disposition: AttachmentType::Attachment,
             content_id: None,
@@ -201,7 +223,7 @@ impl Attachment {
 
     /// Borrow eagerly loaded attachment bytes.
     pub fn data(&self) -> &[u8] {
-        &self.data
+        self.data.as_ref()
     }
 
     /// Borrow the lazy-loading path, if this is a path-based attachment.
@@ -250,7 +272,7 @@ impl Attachment {
         } else if self.data.is_empty() && self.path.is_none() {
             Err(MailError::AttachmentMissingContent(self.filename.clone()))
         } else {
-            Ok(self.data.clone())
+            Ok(self.data.to_vec())
         }
     }
 
@@ -310,7 +332,7 @@ mod tests {
         let attachment = Attachment::from_bytes("test.txt", b"Hello".to_vec());
         assert_eq!(attachment.filename, "test.txt");
         assert_eq!(attachment.content_type, "text/plain");
-        assert_eq!(attachment.data, b"Hello");
+        assert_eq!(attachment.data.as_ref(), b"Hello");
         assert_eq!(attachment.disposition, AttachmentType::Attachment);
     }
 

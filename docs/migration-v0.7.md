@@ -50,3 +50,15 @@ Common replacements:
 Serde support is unchanged: the structs still derive `Serialize` and
 `Deserialize`, and the serialized field names remain stable for existing JSON
 payloads.
+
+## Attachment Clone Semantics
+
+Eager attachments now store their bytes in shared immutable backing storage.
+`Attachment::from_bytes` still takes ownership of a `Vec<u8>`, and
+`Attachment::data()` still returns a borrowed byte slice, but cloning an
+`Attachment` or an `Email` containing attachments no longer copies the raw
+attachment payload.
+
+For compatibility, `Attachment::get_data()` continues to return an owned
+`Vec<u8>`. Use `Attachment::data()` when borrowing eagerly loaded bytes is
+sufficient.

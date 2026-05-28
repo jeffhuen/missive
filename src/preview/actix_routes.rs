@@ -88,12 +88,12 @@ async fn download_attachment(
     let (id, idx) = path.into_inner();
     match core::get_attachment(&state.storage, &id, idx) {
         Some(att) => HttpResponse::Ok()
-            .content_type(att.content_type)
+            .content_type(att.mime_type().to_owned())
             .insert_header((
                 "Content-Disposition",
-                format!("attachment; filename=\"{}\"", att.filename),
+                format!("attachment; filename=\"{}\"", att.filename()),
             ))
-            .body(att.data),
+            .body(att.data().to_vec()),
         None => HttpResponse::NotFound().finish(),
     }
 }
