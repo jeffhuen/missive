@@ -209,6 +209,41 @@ async fn deliver_with_binary_event_payload_returns_ok() {
     assert!(result.is_ok());
 }
 
+#[tokio::test]
+async fn deliver_with_tracking_options_returns_ok() {
+    let server = MockServer::start().await;
+    let mailer = MailjetMailer::new("public_key", "private_key").base_url(server.uri());
+
+    let email = valid_email()
+        .text_body("Hello")
+        .provider_option("track_opens", false)
+        .provider_option("track_clicks", false)
+        .provider_option("url_tags", "utm_source=transactional&utm_medium=email");
+
+    Mock::given(method("POST"))
+        .and(path("/send"))
+        .and(body_json(json!({
+            "Messages": [
+                {
+                    "From": {"Email": "sender@example.com", "Name": ""},
+                    "To": [{"Email": "receiver@example.com", "Name": ""}],
+                    "Subject": "Hello, world!",
+                    "TextPart": "Hello",
+                    "TrackOpens": false,
+                    "TrackClicks": false,
+                    "URLTags": "utm_source=transactional&utm_medium=email"
+                }
+            ]
+        })))
+        .respond_with(success_response())
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let result = mailer.deliver(&email).await;
+    assert!(result.is_ok());
+}
+
 // ============================================================================
 // Error Response Tests
 // ============================================================================

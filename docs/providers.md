@@ -405,7 +405,10 @@ let email = Email::new()
     .provider_option("custom_id", "my-custom-id")
     .provider_option("event_payload", "custom-payload-string")
     .provider_option("template_error_deliver", true)
-    .provider_option("template_error_reporting", "developer@example.com");
+    .provider_option("template_error_reporting", "developer@example.com")
+    .provider_option("track_opens", false)
+    .provider_option("track_clicks", false)
+    .provider_option("url_tags", "utm_source=transactional");
 ```
 
 **Available Options:**
@@ -418,6 +421,9 @@ let email = Email::new()
 | `event_payload` | String/Object | Custom payload for webhook events |
 | `template_error_deliver` | Boolean | Send even if template has errors |
 | `template_error_reporting` | String | Email to notify on template errors |
+| `track_opens` | Boolean | Enable or disable open tracking |
+| `track_clicks` | Boolean | Enable or disable click tracking |
+| `url_tags` | String | URL query parameters to append to links |
 
 ---
 

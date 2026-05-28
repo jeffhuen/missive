@@ -44,7 +44,7 @@
 //!
 //! | Variable | Description |
 //! |----------|-------------|
-//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `socketlabs`, `gmail`, `protonbridge`, `jmap`, `logger`, `logger_full` |
+//! | `EMAIL_PROVIDER` | `smtp`, `resend`, `unsent`, `postmark`, `sendgrid`, `brevo`, `mailgun`, `amazon_ses`, `mailtrap`, `mailjet`, `socketlabs`, `gmail`, `protonbridge`, `jmap`, `logger`, `logger_full` |
 //! | `EMAIL_FROM` | Default sender email |
 //! | `EMAIL_FROM_NAME` | Default sender name |
 //! | `SMTP_HOST` | SMTP server host |
@@ -63,6 +63,8 @@
 //! | `AWS_SECRET_ACCESS_KEY` | AWS secret key |
 //! | `MAILTRAP_API_KEY` | Mailtrap API key |
 //! | `MAILTRAP_SANDBOX_INBOX_ID` | Mailtrap sandbox inbox ID (optional) |
+//! | `MAILJET_API_KEY` | Mailjet API key |
+//! | `MAILJET_SECRET_KEY` | Mailjet secret key |
 //! | `SOCKETLABS_SERVER_ID` | SocketLabs server ID |
 //! | `SOCKETLABS_API_KEY` | SocketLabs API key |
 //! | `GMAIL_ACCESS_TOKEN` | Gmail OAuth2 access token |
@@ -86,6 +88,7 @@
 //! - `mailgun` - Mailgun API provider
 //! - `amazon_ses` - Amazon SES API provider
 //! - `mailtrap` - Mailtrap API provider (testing/staging)
+//! - `mailjet` - Mailjet API provider
 //! - `socketlabs` - SocketLabs Injection API provider
 //! - `gmail` - Gmail API provider (OAuth2)
 //! - `protonbridge` - Proton Bridge provider (local SMTP)
@@ -152,7 +155,7 @@ pub use config::*;
 pub use email::{Email, PreparedEmail};
 pub use error::MailError;
 pub use interceptor::{Interceptor, InterceptorExt, WithInterceptor};
-pub use mailer::{DeliveryResult, Mailer, MailerExt};
+pub use mailer::{DeliveryResult, Mailer};
 
 #[cfg(feature = "local")]
 pub use storage::{MemoryStorage, Storage, StoredEmail};

@@ -24,7 +24,10 @@
 //!     .provider_option("template_error_reporting", "developer@example.com")
 //!     .provider_option("variables", json!({"firstname": "John", "lastname": "Doe"}))
 //!     .provider_option("custom_id", "my-custom-id")
-//!     .provider_option("event_payload", "custom-payload-string");
+//!     .provider_option("event_payload", "custom-payload-string")
+//!     .provider_option("track_opens", false)
+//!     .provider_option("track_clicks", false)
+//!     .provider_option("url_tags", "utm_source=transactional");
 //! ```
 //!
 //! ## Provider Options Reference
@@ -35,6 +38,9 @@
 //! * `variables` (map) - Key/value variables for template substitution
 //! * `custom_id` (string) - Custom ID for tracking
 //! * `event_payload` (string or map) - Custom payload for webhook events
+//! * `track_opens` (boolean) - Enable or disable open tracking
+//! * `track_clicks` (boolean) - Enable or disable click tracking
+//! * `url_tags` (string) - URL query parameters to append to message links
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -170,6 +176,9 @@ impl MailjetMailer {
             variables: None,
             custom_id: None,
             event_payload: None,
+            track_opens: None,
+            track_clicks: None,
+            url_tags: None,
         };
 
         // Add attachments
@@ -241,6 +250,18 @@ impl MailjetMailer {
                 // Serialize map to JSON string
                 message.event_payload = Some(serde_json::to_string(event_payload)?);
             }
+        }
+
+        if let Some(track_opens) = email.provider_options.get("track_opens") {
+            message.track_opens = track_opens.as_bool();
+        }
+
+        if let Some(track_clicks) = email.provider_options.get("track_clicks") {
+            message.track_clicks = track_clicks.as_bool();
+        }
+
+        if let Some(url_tags) = email.provider_options.get("url_tags") {
+            message.url_tags = url_tags.as_str().map(ToOwned::to_owned);
         }
 
         Ok(message)
@@ -443,6 +464,12 @@ struct MailjetMessage {
     custom_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     event_payload: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    track_opens: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    track_clicks: Option<bool>,
+    #[serde(rename = "URLTags", skip_serializing_if = "Option::is_none")]
+    url_tags: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

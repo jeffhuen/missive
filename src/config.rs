@@ -10,6 +10,7 @@
         feature = "mailgun",
         feature = "amazon_ses",
         feature = "mailtrap",
+        feature = "mailjet",
         feature = "socketlabs",
         feature = "gmail",
         feature = "protonbridge",
@@ -49,6 +50,8 @@ pub enum MailerConfig {
     AmazonSes(AmazonSesConfig),
     #[cfg(feature = "mailtrap")]
     Mailtrap(MailtrapConfig),
+    #[cfg(feature = "mailjet")]
+    Mailjet(MailjetConfig),
     #[cfg(feature = "socketlabs")]
     SocketLabs(SocketLabsConfig),
     #[cfg(feature = "gmail")]
@@ -69,8 +72,8 @@ impl MailerConfig {
     ///
     /// If `EMAIL_PROVIDER` is not set, auto-detection checks providers in this
     /// order when their feature is enabled: Resend, SendGrid, Postmark, Unsent,
-    /// Brevo, Mailgun, Amazon SES, Mailtrap, SocketLabs, Gmail, Proton Bridge,
-    /// JMAP, SMTP, Local.
+    /// Brevo, Mailgun, Amazon SES, Mailtrap, Mailjet, SocketLabs, Gmail,
+    /// Proton Bridge, JMAP, SMTP, Local.
     pub fn from_env() -> Result<Self, MailError> {
         Self::from_env_with(|key| env::var(key).ok())
     }
@@ -164,6 +167,11 @@ impl MailerConfig {
             #[cfg(not(feature = "mailtrap"))]
             "mailtrap" => Err(feature_disabled("mailtrap")),
 
+            #[cfg(feature = "mailjet")]
+            "mailjet" => Ok(Self::Mailjet(MailjetConfig::from_env_with_ref(get)?)),
+            #[cfg(not(feature = "mailjet"))]
+            "mailjet" => Err(feature_disabled("mailjet")),
+
             #[cfg(feature = "socketlabs")]
             "socketlabs" => Ok(Self::SocketLabs(SocketLabsConfig::from_env_with_ref(get)?)),
             #[cfg(not(feature = "socketlabs"))]
@@ -198,7 +206,7 @@ impl MailerConfig {
             "logger_full" => Ok(Self::Logger { full: true }),
 
             _ => Err(MailError::Configuration(format!(
-                "Unknown EMAIL_PROVIDER: {provider}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, socketlabs, gmail, protonbridge, jmap, local, logger, logger_full"
+                "Unknown EMAIL_PROVIDER: {provider}. Valid providers are: smtp, resend, unsent, postmark, sendgrid, brevo, mailgun, amazon_ses, mailtrap, mailjet, socketlabs, gmail, protonbridge, jmap, local, logger, logger_full"
             ))),
         }
     }
@@ -224,6 +232,8 @@ impl MailerConfig {
             Self::AmazonSes(_) => "amazon_ses",
             #[cfg(feature = "mailtrap")]
             Self::Mailtrap(_) => "mailtrap",
+            #[cfg(feature = "mailjet")]
+            Self::Mailjet(_) => "mailjet",
             #[cfg(feature = "socketlabs")]
             Self::SocketLabs(_) => "socketlabs",
             #[cfg(feature = "gmail")]
@@ -264,6 +274,11 @@ impl MailerConfig {
             ))),
             #[cfg(feature = "mailtrap")]
             Self::Mailtrap(config) => Ok(Arc::new(config.into_mailer())),
+            #[cfg(feature = "mailjet")]
+            Self::Mailjet(config) => Ok(Arc::new(providers::MailjetMailer::new(
+                config.api_key,
+                config.secret_key,
+            ))),
             #[cfg(feature = "socketlabs")]
             Self::SocketLabs(config) => Ok(Arc::new(providers::SocketLabsMailer::new(
                 config.server_id,
@@ -461,6 +476,26 @@ impl MailtrapConfig {
     }
 }
 
+#[cfg(feature = "mailjet")]
+#[derive(Debug, Clone)]
+pub struct MailjetConfig {
+    pub api_key: String,
+    pub secret_key: String,
+}
+
+#[cfg(feature = "mailjet")]
+impl MailjetConfig {
+    fn from_env_with_ref<F>(get: &mut F) -> Result<Self, MailError>
+    where
+        F: FnMut(&str) -> Option<String> + ?Sized,
+    {
+        Ok(Self {
+            api_key: required_var(get, "MAILJET_API_KEY")?,
+            secret_key: required_var(get, "MAILJET_SECRET_KEY")?,
+        })
+    }
+}
+
 #[cfg(feature = "socketlabs")]
 #[derive(Debug, Clone)]
 pub struct SocketLabsConfig {
@@ -629,6 +664,12 @@ where
     #[cfg(feature = "mailtrap")]
     if optional_var(get, "MAILTRAP_API_KEY").is_some() {
         return Some("mailtrap");
+    }
+    #[cfg(feature = "mailjet")]
+    if optional_var(get, "MAILJET_API_KEY").is_some()
+        && optional_var(get, "MAILJET_SECRET_KEY").is_some()
+    {
+        return Some("mailjet");
     }
     #[cfg(feature = "socketlabs")]
     if optional_var(get, "SOCKETLABS_API_KEY").is_some()

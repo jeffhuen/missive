@@ -13,6 +13,7 @@ attachment errors, and preserved error source chains.
 | Process-global delivery is no longer the primary API | Avoids hidden mutable global state, cross-test contamination, and awkward dependency injection | Own an `EmailClient<M>` and pass it through app state |
 | Environment auto-detection moved behind explicit constructors | Makes environment reads visible at startup and easier to test | Use `EmailClient::from_env()` or `MailerConfig::from_env()` |
 | `Email`, `Address`, and `Attachment` fields are private | Prevents invalid states and preserves layout flexibility for future releases | Use builder methods and accessors |
+| `MailerExt::validate()` is removed | It rejected valid emails that rely on the `EMAIL_FROM` default sender fallback | Use `Email::is_valid()` for a quick check, or rely on delivery validation |
 | Provider-specific options are moving to typed helpers | Avoids typo-prone string keys and runtime JSON type mistakes | Use provider extension traits such as `ResendEmailExt`; keep `.provider_option(...)` only as an escape hatch |
 | Attachment read/encoding errors are returned | Prevents silently sending empty or corrupted attachments | Handle `MailError::AttachmentReadError` from delivery or encoding |
 | Lazy attachment reads are offloaded in async providers | Avoids blocking async executor threads with file I/O | No call-site change for delivery; direct callers can keep sync helpers |

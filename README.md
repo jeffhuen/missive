@@ -148,7 +148,7 @@ Same compiled binary, different behavior per environment.
 2. **Enabled features** - only considers providers whose feature is compiled in
 3. **Fallback to local** - if the `local` feature is enabled and no API keys found
 
-**Detection order:** Resend → SendGrid → Postmark → Unsent → Brevo → Mailgun → Amazon SES → Mailtrap → SocketLabs → Gmail → Proton Bridge → JMAP → SMTP → Local
+**Detection order:** Resend → SendGrid → Postmark → Unsent → Brevo → Mailgun → Amazon SES → Mailtrap → Mailjet → SocketLabs → Gmail → Proton Bridge → JMAP → SMTP → Local
 
 This means minimal env setup for simple cases that explicitly call `EmailClient::from_env()`:
 
@@ -234,6 +234,16 @@ or `preview-actix`; enable those features explicitly when you need them.
 | `SENDGRID_API_KEY` | SendGrid |
 | `POSTMARK_API_KEY` | Postmark |
 | `UNSENT_API_KEY` | Unsent |
+| `BREVO_API_KEY` | Brevo |
+| `MAILGUN_API_KEY`, `MAILGUN_DOMAIN` | Mailgun |
+| `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` | Mailjet |
+| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Amazon SES |
+| `MAILTRAP_API_KEY` | Mailtrap |
+| `SOCKETLABS_SERVER_ID`, `SOCKETLABS_API_KEY` | SocketLabs |
+| `GMAIL_ACCESS_TOKEN` | Gmail |
+| `JMAP_URL`, `JMAP_USERNAME`, `JMAP_PASSWORD` | JMAP basic auth |
+| `JMAP_URL`, `JMAP_BEARER_TOKEN` | JMAP bearer auth |
+| `PROTONBRIDGE_USERNAME`, `PROTONBRIDGE_PASSWORD` | Proton Bridge |
 
 ## Composing Emails
 

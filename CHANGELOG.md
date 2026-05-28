@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed process-global local preview storage behavior. `local_storage()` is
   retained only as a deprecated compatibility facade and returns `None`; create
   `LocalMailer` explicitly and pass `mailer.storage()` to preview APIs.
+- Removed the deprecated `MailerExt::validate()` trait method. Use
+  `Email::is_valid()` for a quick local check, or rely on `EmailClient`,
+  `deliver()`, and `deliver_with()` validation for default sender handling.
 - Changed `MailError` to preserve source errors for HTTP, SMTP, lettre build,
   template, and attachment I/O failures. Code that required cloning errors
   should store a string representation or wrap the error at the application
@@ -35,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added typed Resend provider option helpers through `ResendEmailExt`.
 - Added `PreparedEmail` validation before provider delivery so required sender,
   recipient, and address checks happen consistently before adapter code runs.
+- Added `EMAIL_PROVIDER=mailjet` and Mailjet credential auto-detection through
+  `MAILJET_API_KEY` and `MAILJET_SECRET_KEY`.
 
 ### Changed
 
@@ -47,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default delivery telemetry no longer records recipient addresses or subject
   lines at info level.
 - `full` feature documentation now matches the actual feature bundle.
+- Mailjet provider options now include `track_opens`, `track_clicks`, and
+  `url_tags`, matching the corresponding Swoosh Mailjet adapter options.
 
 ### Fixed
 
@@ -73,7 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 
-- **`MailerExt::validate()`** - This method does not handle the `EMAIL_FROM` environment variable fallback, incorrectly rejecting valid emails. Use `Email::is_valid()` for a quick check or rely on `deliver()`/`deliver_with()` validation. It may be removed in a future breaking release. ([#1](https://github.com/jeffhuen/missive/issues/1))
+- **`MailerExt::validate()`** - This method does not handle the `EMAIL_FROM` environment variable fallback, incorrectly rejecting valid emails. Use `Email::is_valid()` for a quick check or rely on `deliver()`/`deliver_with()` validation. Removed in 0.7.0. ([#1](https://github.com/jeffhuen/missive/issues/1))
 
 ## [0.6.1] - 2026-01-17
 

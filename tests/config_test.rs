@@ -43,6 +43,40 @@ fn mailer_config_from_env_documents_auto_detection_order() {
 }
 
 #[test]
+fn mailer_config_from_env_accepts_explicit_mailjet_provider() {
+    let config = MailerConfig::from_env_with(env(&[
+        ("EMAIL_PROVIDER", "mailjet"),
+        ("MAILJET_API_KEY", "mj_api"),
+        ("MAILJET_SECRET_KEY", "mj_secret"),
+    ]))
+    .unwrap();
+
+    assert_eq!(config.provider_name(), "mailjet");
+}
+
+#[test]
+fn mailer_config_from_env_auto_detects_mailjet_credentials() {
+    let config = MailerConfig::from_env_with(env(&[
+        ("MAILJET_API_KEY", "mj_api"),
+        ("MAILJET_SECRET_KEY", "mj_secret"),
+    ]))
+    .unwrap();
+
+    assert_eq!(config.provider_name(), "mailjet");
+}
+
+#[test]
+fn mailer_config_from_env_requires_mailjet_secret_key() {
+    let error = MailerConfig::from_env_with(env(&[
+        ("EMAIL_PROVIDER", "mailjet"),
+        ("MAILJET_API_KEY", "mj_api"),
+    ]))
+    .unwrap_err();
+
+    assert!(error.to_string().contains("MAILJET_SECRET_KEY"));
+}
+
+#[test]
 fn email_client_from_env_with_is_testable_without_process_env_mutation() {
     let client = EmailClient::from_env_with(env(&[
         ("EMAIL_PROVIDER", "local"),
