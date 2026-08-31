@@ -23,6 +23,71 @@
 //! | [`LocalMailer`] | `local` | In-memory storage for dev/testing |
 //! | [`LoggerMailer`] | (none) | Logs emails without storing |
 
+#[cfg(feature = "_http")]
+const DEFAULT_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+#[cfg(feature = "_http")]
+#[derive(Clone)]
+struct HttpClient {
+    inner: reqwest::Client,
+    timeout: Option<std::time::Duration>,
+}
+
+#[cfg(feature = "_http")]
+impl HttpClient {
+    #[cfg(any(feature = "gmail", feature = "jmap", test))]
+    fn get<U: reqwest::IntoUrl>(&self, url: U) -> reqwest::RequestBuilder {
+        self.with_timeout(self.inner.get(url))
+    }
+
+    fn post<U: reqwest::IntoUrl>(&self, url: U) -> reqwest::RequestBuilder {
+        self.with_timeout(self.inner.post(url))
+    }
+
+    fn with_timeout(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        match self.timeout {
+            Some(timeout) => request.timeout(timeout),
+            None => request,
+        }
+    }
+}
+
+#[cfg(feature = "_http")]
+impl From<reqwest::Client> for HttpClient {
+    fn from(inner: reqwest::Client) -> Self {
+        Self {
+            inner,
+            timeout: None,
+        }
+    }
+}
+
+#[cfg(feature = "_http")]
+fn default_http_client() -> HttpClient {
+    HttpClient {
+        inner: reqwest::Client::new(),
+        timeout: Some(DEFAULT_HTTP_TIMEOUT),
+    }
+}
+
+#[cfg(all(test, feature = "_http"))]
+mod tests {
+    use super::{default_http_client, HttpClient, DEFAULT_HTTP_TIMEOUT};
+
+    #[test]
+    fn default_http_client_sets_a_request_timeout() {
+        let request = default_http_client()
+            .get("https://example.com")
+            .build()
+            .unwrap();
+        assert_eq!(request.timeout(), Some(&DEFAULT_HTTP_TIMEOUT));
+
+        let custom = HttpClient::from(reqwest::Client::new());
+        let request = custom.get("https://example.com").build().unwrap();
+        assert_eq!(request.timeout(), None);
+    }
+}
+
 #[cfg(all(
     feature = "smtp",
     not(all(target_family = "wasm", target_os = "unknown"))

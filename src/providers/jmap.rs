@@ -84,7 +84,7 @@ fn jmap_address(addr: &Address) -> Result<Value, MailError> {
 pub struct JmapMailer {
     session_url: String,
     auth: JmapAuth,
-    client: Client,
+    client: super::HttpClient,
     /// Cached session data (API URL, account ID, identity ID)
     session: JmapSessionCache,
 }
@@ -617,7 +617,10 @@ impl JmapBuilder {
                 username: String::new(),
                 password: String::new(),
             }),
-            client: self.client.unwrap_or_default(),
+            client: self
+                .client
+                .map(Into::into)
+                .unwrap_or_else(super::default_http_client),
             session: session_cache(session),
         }
     }

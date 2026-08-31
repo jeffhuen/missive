@@ -59,7 +59,7 @@ const MAILJET_API_URL: &str = "https://api.mailjet.com/v3.1";
 pub struct MailjetMailer {
     api_key: String,
     secret_key: String,
-    client: Client,
+    client: super::HttpClient,
     base_url: String,
 }
 
@@ -69,7 +69,7 @@ impl MailjetMailer {
         Self {
             api_key: api_key.into(),
             secret_key: secret_key.into(),
-            client: Client::new(),
+            client: super::default_http_client(),
             base_url: MAILJET_API_URL.to_string(),
         }
     }
@@ -83,7 +83,7 @@ impl MailjetMailer {
         Self {
             api_key: api_key.into(),
             secret_key: secret_key.into(),
-            client,
+            client: client.into(),
             base_url: MAILJET_API_URL.to_string(),
         }
     }

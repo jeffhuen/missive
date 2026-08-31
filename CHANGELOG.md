@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Redacted provider credentials from configuration `Debug` output.
+- Added a 30-second timeout to HTTP requests made by default provider clients.
+
 ## [0.7.0] - 2026-05-28
 
 ### Changed

@@ -22,7 +22,7 @@ const UNSENT_API_URL: &str = "https://api.unsend.dev/v1";
 #[must_use = "UnsentMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct UnsentMailer {
     api_key: String,
-    client: Client,
+    client: super::HttpClient,
     base_url: String,
 }
 
@@ -31,7 +31,7 @@ impl UnsentMailer {
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
-            client: Client::new(),
+            client: super::default_http_client(),
             base_url: UNSENT_API_URL.to_string(),
         }
     }
@@ -40,7 +40,7 @@ impl UnsentMailer {
     pub fn with_client(api_key: impl Into<String>, client: Client) -> Self {
         Self {
             api_key: api_key.into(),
-            client,
+            client: client.into(),
             base_url: UNSENT_API_URL.to_string(),
         }
     }

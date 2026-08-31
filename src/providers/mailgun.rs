@@ -67,7 +67,7 @@ pub struct MailgunMailer {
     api_key: String,
     domain: String,
     base_url: String,
-    client: Client,
+    client: super::HttpClient,
 }
 
 impl MailgunMailer {
@@ -77,7 +77,7 @@ impl MailgunMailer {
             api_key: api_key.into(),
             domain: domain.into(),
             base_url: MAILGUN_BASE_URL.to_string(),
-            client: Client::new(),
+            client: super::default_http_client(),
         }
     }
 
@@ -91,7 +91,7 @@ impl MailgunMailer {
             api_key: api_key.into(),
             domain: domain.into(),
             base_url: MAILGUN_BASE_URL.to_string(),
-            client,
+            client: client.into(),
         }
     }
 

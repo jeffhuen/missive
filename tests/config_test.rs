@@ -1,7 +1,7 @@
 #![cfg(feature = "full")]
 
 use missive::providers::TlsMode;
-use missive::{EmailClient, MailerConfig, ResendConfig};
+use missive::{AmazonSesConfig, EmailClient, JmapAuthConfig, MailerConfig, ResendConfig};
 use std::collections::HashMap;
 
 fn env(pairs: &[(&str, &str)]) -> impl FnMut(&str) -> Option<String> {
@@ -18,6 +18,48 @@ fn resend_config_validates_required_api_key() {
     let error = ResendConfig::new("").unwrap_err();
 
     assert!(error.to_string().contains("RESEND_API_KEY"));
+}
+
+#[test]
+fn config_debug_redacts_secrets() {
+    let configs = [
+        format!(
+            "{:?}",
+            MailerConfig::Resend(ResendConfig::new("resend-secret").unwrap())
+        ),
+        format!(
+            "{:?}",
+            AmazonSesConfig {
+                region: "us-east-1".into(),
+                access_key: "aws-access-secret".into(),
+                secret: "aws-secret".into(),
+            }
+        ),
+        format!(
+            "{:?}",
+            JmapAuthConfig::BearerToken("jmap-bearer-secret".into())
+        ),
+        format!(
+            "{:?}",
+            JmapAuthConfig::Basic {
+                username: "user".into(),
+                password: "jmap-password-secret".into(),
+            }
+        ),
+    ];
+
+    for debug in configs {
+        assert!(debug.contains("[REDACTED]"), "{debug}");
+        for secret in [
+            "resend-secret",
+            "aws-access-secret",
+            "aws-secret",
+            "jmap-bearer-secret",
+            "jmap-password-secret",
+        ] {
+            assert!(!debug.contains(secret), "{debug}");
+        }
+    }
 }
 
 #[test]

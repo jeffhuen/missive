@@ -63,7 +63,7 @@ fn attachment_content_type(content_type: &str) -> ContentType {
 #[must_use = "GmailMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct GmailMailer {
     access_token: String,
-    client: Client,
+    client: super::HttpClient,
     base_url: String,
 }
 
@@ -76,7 +76,7 @@ impl GmailMailer {
     pub fn new(access_token: impl Into<String>) -> Self {
         Self {
             access_token: access_token.into(),
-            client: Client::new(),
+            client: super::default_http_client(),
             base_url: GMAIL_API_URL.to_string(),
         }
     }
@@ -85,7 +85,7 @@ impl GmailMailer {
     pub fn with_client(access_token: impl Into<String>, client: Client) -> Self {
         Self {
             access_token: access_token.into(),
-            client,
+            client: client.into(),
             base_url: GMAIL_API_URL.to_string(),
         }
     }

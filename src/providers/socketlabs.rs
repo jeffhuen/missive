@@ -60,7 +60,7 @@ const SOCKETLABS_API_URL: &str = "https://inject-cx.socketlabs.com/api/v1";
 pub struct SocketLabsMailer {
     server_id: String,
     api_key: String,
-    client: Client,
+    client: super::HttpClient,
     base_url: String,
 }
 
@@ -75,7 +75,7 @@ impl SocketLabsMailer {
         Self {
             server_id: server_id.into(),
             api_key: api_key.into(),
-            client: Client::new(),
+            client: super::default_http_client(),
             base_url: SOCKETLABS_API_URL.to_string(),
         }
     }
@@ -89,7 +89,7 @@ impl SocketLabsMailer {
         Self {
             server_id: server_id.into(),
             api_key: api_key.into(),
-            client,
+            client: client.into(),
             base_url: SOCKETLABS_API_URL.to_string(),
         }
     }

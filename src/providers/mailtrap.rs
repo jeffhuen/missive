@@ -59,7 +59,7 @@ pub struct MailtrapMailer {
     api_key: String,
     base_url: Option<String>,
     sandbox_inbox_id: Option<String>,
-    client: Client,
+    client: super::HttpClient,
 }
 
 impl MailtrapMailer {
@@ -69,7 +69,7 @@ impl MailtrapMailer {
             api_key: api_key.into(),
             base_url: None,
             sandbox_inbox_id: None,
-            client: Client::new(),
+            client: super::default_http_client(),
         }
     }
 
@@ -79,7 +79,7 @@ impl MailtrapMailer {
             api_key: api_key.into(),
             base_url: None,
             sandbox_inbox_id: None,
-            client,
+            client: client.into(),
         }
     }
 

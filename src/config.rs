@@ -21,6 +21,7 @@
 )]
 
 use std::borrow::Cow;
+use std::fmt;
 use std::sync::Arc;
 
 #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
@@ -31,6 +32,21 @@ use crate::client::EmailClient;
 use crate::error::MailError;
 use crate::mailer::Mailer;
 use crate::providers;
+
+const REDACTED: &str = "[REDACTED]";
+
+macro_rules! impl_redacted_debug {
+    ($name:ident, visible: [$($visible:ident),* $(,)?], secret: [$($secret:ident),* $(,)?]) => {
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let mut debug = f.debug_struct(stringify!($name));
+                $(debug.field(stringify!($visible), &self.$visible);)*
+                $(debug.field(stringify!($secret), &REDACTED);)*
+                debug.finish()
+            }
+        }
+    };
+}
 
 /// Typed configuration for building a mailer from environment-like input.
 #[derive(Debug, Clone)]
@@ -382,7 +398,7 @@ impl MailerConfig {
 }
 
 /// Configuration for providers that require one API key.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ApiKeyConfig {
     pub api_key: String,
 }
@@ -403,8 +419,10 @@ impl ApiKeyConfig {
     }
 }
 
+impl_redacted_debug!(ApiKeyConfig, visible: [], secret: [api_key]);
+
 #[cfg(feature = "resend")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ResendConfig {
     pub api_key: String,
 }
@@ -447,11 +465,14 @@ impl ResendConfig {
     }
 }
 
+#[cfg(feature = "resend")]
+impl_redacted_debug!(ResendConfig, visible: [], secret: [api_key]);
+
 #[cfg(all(
     feature = "smtp",
     not(all(target_family = "wasm", target_os = "unknown"))
 ))]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SmtpConfig {
     pub host: String,
     pub port: u16,
@@ -501,10 +522,20 @@ impl SmtpConfig {
 }
 
 #[cfg(all(
+    feature = "smtp",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
+impl_redacted_debug!(
+    SmtpConfig,
+    visible: [host, port, username, tls],
+    secret: [password]
+);
+
+#[cfg(all(
     feature = "mailgun",
     not(all(target_family = "wasm", target_os = "unknown"))
 ))]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MailgunConfig {
     pub api_key: String,
     pub domain: String,
@@ -536,8 +567,18 @@ impl MailgunConfig {
     }
 }
 
+#[cfg(all(
+    feature = "mailgun",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
+impl_redacted_debug!(
+    MailgunConfig,
+    visible: [domain, base_url],
+    secret: [api_key]
+);
+
 #[cfg(feature = "amazon_ses")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AmazonSesConfig {
     pub region: String,
     pub access_key: String,
@@ -558,8 +599,15 @@ impl AmazonSesConfig {
     }
 }
 
+#[cfg(feature = "amazon_ses")]
+impl_redacted_debug!(
+    AmazonSesConfig,
+    visible: [region],
+    secret: [access_key, secret]
+);
+
 #[cfg(feature = "mailtrap")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MailtrapConfig {
     pub api_key: String,
     pub sandbox_inbox_id: Option<String>,
@@ -586,8 +634,15 @@ impl MailtrapConfig {
     }
 }
 
+#[cfg(feature = "mailtrap")]
+impl_redacted_debug!(
+    MailtrapConfig,
+    visible: [sandbox_inbox_id],
+    secret: [api_key]
+);
+
 #[cfg(feature = "mailjet")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MailjetConfig {
     pub api_key: String,
     pub secret_key: String,
@@ -606,8 +661,11 @@ impl MailjetConfig {
     }
 }
 
+#[cfg(feature = "mailjet")]
+impl_redacted_debug!(MailjetConfig, visible: [], secret: [api_key, secret_key]);
+
 #[cfg(feature = "socketlabs")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SocketLabsConfig {
     pub server_id: String,
     pub api_key: String,
@@ -626,11 +684,18 @@ impl SocketLabsConfig {
     }
 }
 
+#[cfg(feature = "socketlabs")]
+impl_redacted_debug!(
+    SocketLabsConfig,
+    visible: [server_id],
+    secret: [api_key]
+);
+
 #[cfg(all(
     feature = "protonbridge",
     not(all(target_family = "wasm", target_os = "unknown"))
 ))]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ProtonBridgeConfig {
     pub username: String,
     pub password: String,
@@ -669,6 +734,16 @@ impl ProtonBridgeConfig {
     }
 }
 
+#[cfg(all(
+    feature = "protonbridge",
+    not(all(target_family = "wasm", target_os = "unknown"))
+))]
+impl_redacted_debug!(
+    ProtonBridgeConfig,
+    visible: [username, host, port],
+    secret: [password]
+);
+
 #[cfg(feature = "jmap")]
 #[derive(Debug, Clone)]
 pub struct JmapConfig {
@@ -677,10 +752,24 @@ pub struct JmapConfig {
 }
 
 #[cfg(feature = "jmap")]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum JmapAuthConfig {
     BearerToken(String),
     Basic { username: String, password: String },
+}
+
+#[cfg(feature = "jmap")]
+impl fmt::Debug for JmapAuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BearerToken(_) => f.debug_tuple("BearerToken").field(&REDACTED).finish(),
+            Self::Basic { username, .. } => f
+                .debug_struct("Basic")
+                .field("username", username)
+                .field("password", &REDACTED)
+                .finish(),
+        }
+    }
 }
 
 #[cfg(feature = "jmap")]

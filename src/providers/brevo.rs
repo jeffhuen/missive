@@ -64,7 +64,7 @@ const BREVO_API_ENDPOINT: &str = "/smtp/email";
 pub struct BrevoMailer {
     api_key: String,
     base_url: String,
-    client: Client,
+    client: super::HttpClient,
 }
 
 impl BrevoMailer {
@@ -73,7 +73,7 @@ impl BrevoMailer {
         Self {
             api_key: api_key.into(),
             base_url: BREVO_BASE_URL.to_string(),
-            client: Client::new(),
+            client: super::default_http_client(),
         }
     }
 
@@ -82,7 +82,7 @@ impl BrevoMailer {
         Self {
             api_key: api_key.into(),
             base_url: BREVO_BASE_URL.to_string(),
-            client,
+            client: client.into(),
         }
     }
 

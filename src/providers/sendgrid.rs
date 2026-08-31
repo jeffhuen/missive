@@ -74,7 +74,7 @@ const SENDGRID_API_URL: &str = "https://api.sendgrid.com/v3";
 #[must_use = "SendGridMailer configuration methods return a modified mailer; chain or assign the returned value"]
 pub struct SendGridMailer {
     api_key: String,
-    client: Client,
+    client: super::HttpClient,
     base_url: String,
     compress: bool,
 }
@@ -84,7 +84,7 @@ impl SendGridMailer {
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
-            client: Client::new(),
+            client: super::default_http_client(),
             base_url: SENDGRID_API_URL.to_string(),
             compress: false,
         }
@@ -94,7 +94,7 @@ impl SendGridMailer {
     pub fn with_client(api_key: impl Into<String>, client: Client) -> Self {
         Self {
             api_key: api_key.into(),
-            client,
+            client: client.into(),
             base_url: SENDGRID_API_URL.to_string(),
             compress: false,
         }
